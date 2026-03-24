@@ -301,6 +301,111 @@ public class AiController : ControllerBase
         return Ok(MapFeedback(feedback));
     }
 
+    [HttpPost("apply-suggestion")]
+    public async Task<ActionResult<ApplyAiSuggestionResponse>> ApplySuggestion([FromBody] ApplyAiSuggestionRequest req)
+    {
+        var project = await _db.Projects
+            .Include(p => p.AiSuggestionFeedback)
+            .FirstOrDefaultAsync(p => p.Id == req.ProjectId && p.TenantId == TenantId);
+
+        if (project == null) return NotFound();
+
+        var normalizedTarget = req.TargetType.Trim().ToLowerInvariant();
+        Guid entityId;
+        string entityTitle;
+
+        switch (normalizedTarget)
+        {
+            case "task":
+                var task = new ProjectTask
+                {
+                    ProjectId = req.ProjectId,
+                    Title = req.Title,
+                    Description = string.IsNullOrWhiteSpace(req.Notes) ? req.Recommendation : $"{req.Recommendation}\n\nFreigabe-Notiz: {req.Notes}",
+                    Status = "todo",
+                    Priority = req.Type is "risk" or "governance" ? "high" : "medium",
+                    AssigneeId = UserId,
+                    DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+                    EstimatedHours = 4
+                };
+                _db.Tasks.Add(task);
+                entityId = task.Id;
+                entityTitle = task.Title;
+                break;
+            case "risk":
+                var risk = new Risk
+                {
+                    ProjectId = req.ProjectId,
+                    OwnerId = UserId,
+                    Title = req.Title,
+                    Description = string.IsNullOrWhiteSpace(req.Notes) ? req.Recommendation : $"{req.Recommendation}\n\nFreigabe-Notiz: {req.Notes}",
+                    Impact = 4,
+                    Probability = 3,
+                    Status = "open",
+                    Mitigation = "Aus AI-Freigabe erzeugt. Massnahme im Projekt abstimmen."
+                };
+                _db.Risks.Add(risk);
+                entityId = risk.Id;
+                entityTitle = risk.Title;
+                break;
+            case "decision":
+                var decision = new ProjectDecision
+                {
+                    ProjectId = req.ProjectId,
+                    OwnerId = UserId,
+                    Title = req.Title,
+                    Context = req.Recommendation,
+                    Decision = string.IsNullOrWhiteSpace(req.Notes) ? "Zur Entscheidung vorbereitet." : req.Notes,
+                    DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)),
+                    Status = "open"
+                };
+                _db.ProjectDecisions.Add(decision);
+                entityId = decision.Id;
+                entityTitle = decision.Title;
+                break;
+            default:
+                return BadRequest(new { message = "TargetType muss task, risk oder decision sein." });
+        }
+
+        var existingFeedback = await _db.AiSuggestionFeedback
+            .FirstOrDefaultAsync(item => item.ProjectId == req.ProjectId && item.SuggestionType == req.Type && item.SuggestionTitle == req.Title);
+
+        if (existingFeedback == null)
+        {
+            existingFeedback = new AiSuggestionFeedback
+            {
+                ProjectId = req.ProjectId,
+                UserId = UserId,
+                SuggestionType = req.Type,
+                SuggestionTitle = req.Title,
+                Status = "accepted",
+                Notes = req.Notes ?? ""
+            };
+            _db.AiSuggestionFeedback.Add(existingFeedback);
+        }
+        else
+        {
+            existingFeedback.UserId = UserId;
+            existingFeedback.Status = "accepted";
+            existingFeedback.Notes = req.Notes ?? existingFeedback.Notes;
+            existingFeedback.UpdatedAt = DateTime.UtcNow;
+        }
+
+        _db.ActivityLogs.Add(new ActivityLog
+        {
+            TenantId = TenantId,
+            UserId = UserId,
+            ProjectId = req.ProjectId,
+            EntityId = entityId,
+            EntityType = "AiSuggestionApply",
+            Action = $"hat AI-Vorschlag uebernommen als {normalizedTarget}: {req.Title}"
+        });
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new ApplyAiSuggestionResponse(req.ProjectId, normalizedTarget, entityId, entityTitle, "accepted"));
+    }
+
     private static AiSuggestionDto BuildSuggestion(Project project, string type, string title, string reason, string recommendation, string priority, List<string> sources)
         => new(
             project.Id,

@@ -68,6 +68,7 @@ public class Project : BaseEntity
     public ICollection<ProjectGovernanceCheck> GovernanceChecks { get; set; } = new List<ProjectGovernanceCheck>();
     public ICollection<ProjectKnowledgeItem> KnowledgeItems { get; set; } = new List<ProjectKnowledgeItem>();
     public ICollection<AiSuggestionFeedback> AiSuggestionFeedback { get; set; } = new List<AiSuggestionFeedback>();
+    public ProjectTeamsLink? TeamsLink { get; set; }
 }
 
 public class ProjectTask : BaseEntity
@@ -228,4 +229,17 @@ public class AiSuggestionFeedback : BaseEntity
     public string Notes { get; set; } = "";
     public Project? Project { get; set; }
     public User? User { get; set; }
+}
+
+public class ProjectTeamsLink : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    [MaxLength(200)] public string TeamName { get; set; } = "";
+    [MaxLength(200)] public string ChannelName { get; set; } = "";
+    [MaxLength(200)] public string TeamId { get; set; } = "";
+    [MaxLength(200)] public string ChannelId { get; set; } = "";
+    [MaxLength(200)] public string TenantDomain { get; set; } = "";
+    [MaxLength(20)] public string SyncStatus { get; set; } = "planned";
+    public DateTime? LastSyncAt { get; set; }
+    public Project? Project { get; set; }
 }

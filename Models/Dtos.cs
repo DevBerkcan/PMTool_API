@@ -39,6 +39,7 @@ public record ProjectDecisionDto(Guid Id, string Title, string Context, string D
 public record ProjectDocumentDto(Guid Id, string Title, string Category, string Url, string Status, string OwnerName, DateTime CreatedAt);
 public record ProjectGovernanceCheckDto(Guid Id, string Title, string Area, string Notes, string OwnerName, DateOnly DueDate, string Status);
 public record ProjectKnowledgeItemDto(Guid Id, string Title, string SourceType, string SourceLabel, string Content, List<string> Tags, string AuthorName, int Importance, DateTime CreatedAt);
+public record ProjectTeamsLinkDto(Guid ProjectId, string TeamName, string ChannelName, string TeamId, string ChannelId, string TenantDomain, string SyncStatus, DateTime? LastSyncAt);
 
 public record ProjectDetailDto(
     Guid Id,
@@ -73,7 +74,8 @@ public record ProjectDetailDto(
     List<ProjectDecisionDto> Decisions,
     List<ProjectDocumentDto> Documents,
     List<ProjectGovernanceCheckDto> GovernanceChecks,
-    List<ProjectKnowledgeItemDto> KnowledgeItems
+    List<ProjectKnowledgeItemDto> KnowledgeItems,
+    ProjectTeamsLinkDto? TeamsLink
 );
 
 public record CreateProjectRequest(string Name, string Description, string Customer, decimal BudgetTotal, DateOnly StartDate, DateOnly EndDate);
@@ -108,6 +110,7 @@ public record CreateProjectDocumentRequest(string Title, string Category, string
 public record CreateProjectGovernanceCheckRequest(string Title, string Area, string Notes, Guid? OwnerId, DateOnly DueDate);
 public record UpdateProjectGovernanceCheckStatusRequest(string Status);
 public record CreateProjectKnowledgeItemRequest(string Title, string SourceType, string SourceLabel, string Content, List<string>? Tags, int? Importance);
+public record UpsertProjectTeamsLinkRequest(string TeamName, string ChannelName, string TeamId, string ChannelId, string TenantDomain, string SyncStatus);
 public record GovernanceOverviewProjectDto(Guid ProjectId, string ProjectName, string Category, string Stage, string Status, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones);
 public record GovernanceOverviewDto(List<GovernanceOverviewProjectDto> Projects, int TotalProjects, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones);
 
@@ -116,6 +119,8 @@ public record AiChatResponse(string Reply);
 public record AiSuggestionDto(Guid ProjectId, string ProjectName, string Type, string Title, string Reason, string Recommendation, string Priority, List<string> Sources, string FeedbackStatus);
 public record AiSuggestionFeedbackDto(Guid Id, Guid ProjectId, string SuggestionType, string SuggestionTitle, string Status, string Notes, string UserName, DateTime CreatedAt);
 public record CreateAiSuggestionFeedbackRequest(Guid ProjectId, string Type, string Title, string Status, string Notes);
+public record ApplyAiSuggestionRequest(Guid ProjectId, string Type, string Title, string Recommendation, string TargetType, string? Notes);
+public record ApplyAiSuggestionResponse(Guid ProjectId, string TargetType, Guid EntityId, string EntityTitle, string FeedbackStatus);
 public record WeeklyStatusDto(Guid ProjectId, string ProjectName, string Summary, string DeliveryFocus, string RiskFocus, string GovernanceFocus, List<string> Highlights, List<string> NextActions);
 public record ImportAnalyzeRequest(Guid ProjectId, string SourceType, string Content);
 public record ImportPreviewRowDto(int RowNumber, List<string> Values);
@@ -127,3 +132,4 @@ public record MeetingExtractedItemDto(string Type, string Title, string Detail);
 public record MeetingAnalyzeResponse(Guid ProjectId, string SourceType, string Title, string Summary, List<MeetingExtractedItemDto> Actions, List<MeetingExtractedItemDto> Decisions, List<MeetingExtractedItemDto> Risks, List<MeetingExtractedItemDto> Knowledge);
 public record MeetingCommitRequest(Guid ProjectId, string SourceType, string Title, string Content);
 public record MeetingCommitResponse(Guid ProjectId, string Title, int CreatedTasks, int CreatedDecisions, int CreatedRisks, int CreatedKnowledgeItems, string Summary);
+public record GraphIntegrationStatusDto(bool IsConfigured, string ClientId, string TenantId, string RedirectUri, List<string> Scopes, string SetupHint);

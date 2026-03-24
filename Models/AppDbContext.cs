@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<ProjectGovernanceCheck> ProjectGovernanceChecks => Set<ProjectGovernanceCheck>();
     public DbSet<ProjectKnowledgeItem> ProjectKnowledgeItems => Set<ProjectKnowledgeItem>();
     public DbSet<AiSuggestionFeedback> AiSuggestionFeedback => Set<AiSuggestionFeedback>();
+    public DbSet<ProjectTeamsLink> ProjectTeamsLinks => Set<ProjectTeamsLink>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -50,9 +51,11 @@ public class AppDbContext : DbContext
         mb.Entity<ProjectKnowledgeItem>().HasOne(t => t.Author).WithMany().HasForeignKey(t => t.AuthorId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<AiSuggestionFeedback>().HasOne(t => t.Project).WithMany(p => p.AiSuggestionFeedback).HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<AiSuggestionFeedback>().HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<ProjectTeamsLink>().HasOne(t => t.Project).WithOne(p => p.TeamsLink).HasForeignKey<ProjectTeamsLink>(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<Project>().HasIndex(p => p.TenantId);
         mb.Entity<ProjectTask>().HasIndex(t => t.ProjectId);
         mb.Entity<ResourceAllocation>().HasIndex(r => new { r.UserId, r.ProjectId }).IsUnique();
+        mb.Entity<ProjectTeamsLink>().HasIndex(t => t.ProjectId).IsUnique();
 
         var tenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var ownerId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -310,6 +313,11 @@ public class AppDbContext : DbContext
 
         mb.Entity<AiSuggestionFeedback>().HasData(
             new AiSuggestionFeedback { Id = Guid.Parse("c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1"), ProjectId = gShareId, UserId = ownerId, SuggestionType = "governance", SuggestionTitle = "Governance-Luecke schliessen", Status = "accepted", Notes = "Wird im kommenden Steering direkt aufgenommen.", CreatedAt = new DateTime(2026, 3, 24, 8, 30, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 3, 24, 8, 30, 0, DateTimeKind.Utc) }
+        );
+
+        mb.Entity<ProjectTeamsLink>().HasData(
+            new ProjectTeamsLink { Id = Guid.Parse("d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1"), ProjectId = briefingId, TeamName = "AI Briefing Tool", ChannelName = "briefing-pilot", TeamId = "teams-ai-briefing", ChannelId = "channel-briefing-pilot", TenantDomain = "realcore.onmicrosoft.com", SyncStatus = "planned" },
+            new ProjectTeamsLink { Id = Guid.Parse("d2d2d2d2-d2d2-d2d2-d2d2-d2d2d2d2d2d2"), ProjectId = posId, TeamName = "POS Rollout", ChannelName = "weekly-sync", TeamId = "teams-pos-rollout", ChannelId = "channel-weekly-sync", TenantDomain = "realcore.onmicrosoft.com", SyncStatus = "planned" }
         );
     }
 }

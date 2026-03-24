@@ -77,6 +77,7 @@ public class ProjectsController : ControllerBase
             .Include(p => p.Documents).ThenInclude(t => t.Owner)
             .Include(p => p.GovernanceChecks).ThenInclude(t => t.Owner)
             .Include(p => p.KnowledgeItems).ThenInclude(t => t.Author)
+            .Include(p => p.TeamsLink)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
 
         return project == null ? NotFound() : Ok(MapProjectDetail(project));
@@ -557,6 +558,56 @@ public class ProjectsController : ControllerBase
         return Ok(MapKnowledgeItem(item));
     }
 
+    [HttpGet("{id}/teams-link")]
+    public async Task<ActionResult<ProjectTeamsLinkDto?>> GetTeamsLink(Guid id)
+    {
+        var project = await _db.Projects
+            .Include(p => p.TeamsLink)
+            .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+
+        if (project == null) return NotFound();
+        return Ok(project.TeamsLink == null ? null : MapTeamsLink(project.TeamsLink));
+    }
+
+    [HttpPut("{id}/teams-link")]
+    public async Task<ActionResult<ProjectTeamsLinkDto>> UpsertTeamsLink(Guid id, [FromBody] UpsertProjectTeamsLinkRequest req)
+    {
+        var project = await _db.Projects
+            .Include(p => p.TeamsLink)
+            .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+
+        if (project == null) return NotFound();
+
+        var link = project.TeamsLink;
+        if (link == null)
+        {
+            link = new ProjectTeamsLink { ProjectId = id };
+            _db.ProjectTeamsLinks.Add(link);
+        }
+
+        link.TeamName = req.TeamName;
+        link.ChannelName = req.ChannelName;
+        link.TeamId = req.TeamId;
+        link.ChannelId = req.ChannelId;
+        link.TenantDomain = req.TenantDomain;
+        link.SyncStatus = req.SyncStatus;
+        link.LastSyncAt = req.SyncStatus == "connected" ? DateTime.UtcNow : link.LastSyncAt;
+        link.UpdatedAt = DateTime.UtcNow;
+
+        _db.ActivityLogs.Add(new ActivityLog
+        {
+            TenantId = TenantId,
+            UserId = UserId,
+            ProjectId = id,
+            EntityId = link.Id,
+            EntityType = "ProjectTeamsLink",
+            Action = $"hat Teams-Link aktualisiert: {req.TeamName} / {req.ChannelName}"
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(MapTeamsLink(link));
+    }
+
     private static ProjectDto MapProject(Project p) => new(
         p.Id,
         p.Name,
@@ -608,7 +659,8 @@ public class ProjectsController : ControllerBase
         p.Decisions.OrderBy(t => t.DueDate).Select(MapDecision).ToList(),
         p.Documents.OrderByDescending(t => t.CreatedAt).Select(MapDocument).ToList(),
         p.GovernanceChecks.OrderBy(t => t.DueDate).Select(MapGovernanceCheck).ToList(),
-        p.KnowledgeItems.OrderByDescending(t => t.Importance).ThenByDescending(t => t.CreatedAt).Select(MapKnowledgeItem).ToList()
+        p.KnowledgeItems.OrderByDescending(t => t.Importance).ThenByDescending(t => t.CreatedAt).Select(MapKnowledgeItem).ToList(),
+        p.TeamsLink == null ? null : MapTeamsLink(p.TeamsLink)
     );
 
     private static ProjectTeamMemberDto MapTeamMember(ResourceAllocation allocation) => new(
@@ -629,6 +681,7 @@ public class ProjectsController : ControllerBase
     private static ProjectDocumentDto MapDocument(ProjectDocument document) => new(document.Id, document.Title, document.Category, document.Url, document.Status, document.Owner?.DisplayName ?? "", document.CreatedAt);
     private static ProjectGovernanceCheckDto MapGovernanceCheck(ProjectGovernanceCheck check) => new(check.Id, check.Title, check.Area, check.Notes, check.Owner?.DisplayName ?? "", check.DueDate, check.Status);
     private static ProjectKnowledgeItemDto MapKnowledgeItem(ProjectKnowledgeItem item) => new(item.Id, item.Title, item.SourceType, item.SourceLabel, item.Content, SplitList(item.TagsCsv), item.Author?.DisplayName ?? "", item.Importance, item.CreatedAt);
+    private static ProjectTeamsLinkDto MapTeamsLink(ProjectTeamsLink link) => new(link.ProjectId, link.TeamName, link.ChannelName, link.TeamId, link.ChannelId, link.TenantDomain, link.SyncStatus, link.LastSyncAt);
 
     private static List<string> SplitList(string value) => value
         .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

@@ -387,6 +387,22 @@ CREATE TABLE [AiSuggestionFeedback](
     CONSTRAINT [FK_AiSuggestionFeedback_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users]([Id])
 )");
 
+    EnsureTable(db, "ProjectTeamsLinks", @"
+CREATE TABLE [ProjectTeamsLinks](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [ProjectId] uniqueidentifier NOT NULL,
+    [TeamName] nvarchar(200) NOT NULL,
+    [ChannelName] nvarchar(200) NOT NULL,
+    [TeamId] nvarchar(200) NOT NULL,
+    [ChannelId] nvarchar(200) NOT NULL,
+    [TenantDomain] nvarchar(200) NOT NULL,
+    [SyncStatus] nvarchar(20) NOT NULL,
+    [LastSyncAt] datetime2 NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_ProjectTeamsLinks_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE
+)");
+
     EnsureIndex(db, "ProjectMilestones", "IX_ProjectMilestones_ProjectId", "CREATE INDEX [IX_ProjectMilestones_ProjectId] ON [ProjectMilestones]([ProjectId])");
     EnsureIndex(db, "ProjectMilestones", "IX_ProjectMilestones_OwnerId", "CREATE INDEX [IX_ProjectMilestones_OwnerId] ON [ProjectMilestones]([OwnerId])");
     EnsureIndex(db, "ProjectDecisions", "IX_ProjectDecisions_ProjectId", "CREATE INDEX [IX_ProjectDecisions_ProjectId] ON [ProjectDecisions]([ProjectId])");
@@ -399,4 +415,5 @@ CREATE TABLE [AiSuggestionFeedback](
     EnsureIndex(db, "ProjectKnowledgeItems", "IX_ProjectKnowledgeItems_AuthorId", "CREATE INDEX [IX_ProjectKnowledgeItems_AuthorId] ON [ProjectKnowledgeItems]([AuthorId])");
     EnsureIndex(db, "AiSuggestionFeedback", "IX_AiSuggestionFeedback_ProjectId", "CREATE INDEX [IX_AiSuggestionFeedback_ProjectId] ON [AiSuggestionFeedback]([ProjectId])");
     EnsureIndex(db, "AiSuggestionFeedback", "IX_AiSuggestionFeedback_UserId", "CREATE INDEX [IX_AiSuggestionFeedback_UserId] ON [AiSuggestionFeedback]([UserId])");
+    EnsureIndex(db, "ProjectTeamsLinks", "IX_ProjectTeamsLinks_ProjectId", "CREATE UNIQUE INDEX [IX_ProjectTeamsLinks_ProjectId] ON [ProjectTeamsLinks]([ProjectId])");
 }
