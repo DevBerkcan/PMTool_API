@@ -122,3 +122,8 @@ public record ImportPreviewRowDto(int RowNumber, List<string> Values);
 public record ImportAnalyzeResponse(Guid ProjectId, string SourceType, int RowCount, int ColumnCount, List<string> Headers, List<ImportPreviewRowDto> Rows, string Summary);
 public record ImportCommitRequest(Guid ProjectId, string SourceType, string Title, string Content);
 public record ImportCommitResponse(Guid ProjectId, string Title, string SourceType, int ImportedRows, string Summary);
+public record MeetingAnalyzeRequest(Guid ProjectId, string SourceType, string Title, string Content);
+public record MeetingExtractedItemDto(string Type, string Title, string Detail);
+public record MeetingAnalyzeResponse(Guid ProjectId, string SourceType, string Title, string Summary, List<MeetingExtractedItemDto> Actions, List<MeetingExtractedItemDto> Decisions, List<MeetingExtractedItemDto> Risks, List<MeetingExtractedItemDto> Knowledge);
+public record MeetingCommitRequest(Guid ProjectId, string SourceType, string Title, string Content);
+public record MeetingCommitResponse(Guid ProjectId, string Title, int CreatedTasks, int CreatedDecisions, int CreatedRisks, int CreatedKnowledgeItems, string Summary);
