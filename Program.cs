@@ -180,6 +180,12 @@ static void DropAppTables(AppDbContext db)
     {
         "TaskComments",
         "Tasks",
+        "ProjectMilestones",
+        "ProjectDecisions",
+        "ProjectDocuments",
+        "ProjectGovernanceChecks",
+        "ProjectKnowledgeItems",
+        "AiSuggestionFeedback",
         "ProjectLeadTasks",
         "ProjectNotes",
         "ActivityLogs",
@@ -198,7 +204,7 @@ static void DropAppTables(AppDbContext db)
             continue;
         }
 
-        db.Database.ExecuteSqlRaw($"DROP TABLE [{table}]");
+        db.Database.ExecuteSqlRaw("DROP TABLE [" + table + "]");
     }
 }
 
@@ -215,7 +221,13 @@ static bool HasRequiredSqlServerSchema(AppDbContext db)
         "Risks",
         "ActivityLogs",
         "ProjectNotes",
-        "ProjectLeadTasks"
+        "ProjectLeadTasks",
+        "ProjectMilestones",
+        "ProjectDecisions",
+        "ProjectDocuments",
+        "ProjectGovernanceChecks",
+        "ProjectKnowledgeItems",
+        "AiSuggestionFeedback"
     };
 
     foreach (var table in requiredTables)

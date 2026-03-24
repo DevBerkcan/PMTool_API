@@ -35,6 +35,12 @@ public class Project : BaseEntity
     [Required, MaxLength(300)] public string Name { get; set; } = "";
     public string Description { get; set; } = "";
     [Required, MaxLength(200)] public string Customer { get; set; } = "";
+    [MaxLength(50)] public string Category { get; set; } = "delivery";
+    [MaxLength(50)] public string Stage { get; set; } = "planning";
+    [MaxLength(100)] public string DeliveryModel { get; set; } = "";
+    [MaxLength(200)] public string Sponsor { get; set; } = "";
+    public string ExecutiveSummary { get; set; } = "";
+    public string HealthSummary { get; set; } = "";
     public string Objective { get; set; } = "";
     public string Scope { get; set; } = "";
     public string SuccessMetric { get; set; } = "";
@@ -56,6 +62,12 @@ public class Project : BaseEntity
     public ICollection<ResourceAllocation> TeamAssignments { get; set; } = new List<ResourceAllocation>();
     public ICollection<ProjectNote> Notes { get; set; } = new List<ProjectNote>();
     public ICollection<ProjectLeadTask> LeadTasks { get; set; } = new List<ProjectLeadTask>();
+    public ICollection<ProjectMilestone> Milestones { get; set; } = new List<ProjectMilestone>();
+    public ICollection<ProjectDecision> Decisions { get; set; } = new List<ProjectDecision>();
+    public ICollection<ProjectDocument> Documents { get; set; } = new List<ProjectDocument>();
+    public ICollection<ProjectGovernanceCheck> GovernanceChecks { get; set; } = new List<ProjectGovernanceCheck>();
+    public ICollection<ProjectKnowledgeItem> KnowledgeItems { get; set; } = new List<ProjectKnowledgeItem>();
+    public ICollection<AiSuggestionFeedback> AiSuggestionFeedback { get; set; } = new List<AiSuggestionFeedback>();
 }
 
 public class ProjectTask : BaseEntity
@@ -140,4 +152,80 @@ public class ProjectLeadTask : BaseEntity
     [MaxLength(20)] public string Status { get; set; } = "todo";
     public Project? Project { get; set; }
     public User? Owner { get; set; }
+}
+
+public class ProjectMilestone : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    public Guid OwnerId { get; set; }
+    [Required, MaxLength(200)] public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public DateOnly DueDate { get; set; }
+    [MaxLength(20)] public string Status { get; set; } = "planned";
+    public Project? Project { get; set; }
+    public User? Owner { get; set; }
+}
+
+public class ProjectDecision : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    public Guid OwnerId { get; set; }
+    [Required, MaxLength(200)] public string Title { get; set; } = "";
+    public string Context { get; set; } = "";
+    public string Decision { get; set; } = "";
+    public DateOnly DueDate { get; set; }
+    [MaxLength(20)] public string Status { get; set; } = "open";
+    public Project? Project { get; set; }
+    public User? Owner { get; set; }
+}
+
+public class ProjectDocument : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    public Guid OwnerId { get; set; }
+    [Required, MaxLength(200)] public string Title { get; set; } = "";
+    [MaxLength(100)] public string Category { get; set; } = "";
+    [MaxLength(500)] public string Url { get; set; } = "";
+    [MaxLength(20)] public string Status { get; set; } = "draft";
+    public Project? Project { get; set; }
+    public User? Owner { get; set; }
+}
+
+public class ProjectGovernanceCheck : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    public Guid OwnerId { get; set; }
+    [Required, MaxLength(200)] public string Title { get; set; } = "";
+    [MaxLength(100)] public string Area { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public DateOnly DueDate { get; set; }
+    [MaxLength(20)] public string Status { get; set; } = "open";
+    public Project? Project { get; set; }
+    public User? Owner { get; set; }
+}
+
+public class ProjectKnowledgeItem : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    public Guid AuthorId { get; set; }
+    [Required, MaxLength(200)] public string Title { get; set; } = "";
+    [MaxLength(50)] public string SourceType { get; set; } = "note";
+    [MaxLength(500)] public string SourceLabel { get; set; } = "";
+    [Required] public string Content { get; set; } = "";
+    public string TagsCsv { get; set; } = "";
+    public int Importance { get; set; } = 3;
+    public Project? Project { get; set; }
+    public User? Author { get; set; }
+}
+
+public class AiSuggestionFeedback : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    public Guid UserId { get; set; }
+    [Required, MaxLength(50)] public string SuggestionType { get; set; } = "";
+    [Required, MaxLength(200)] public string SuggestionTitle { get; set; } = "";
+    [MaxLength(20)] public string Status { get; set; } = "accepted";
+    public string Notes { get; set; } = "";
+    public Project? Project { get; set; }
+    public User? User { get; set; }
 }

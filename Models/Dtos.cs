@@ -8,6 +8,8 @@ public record ProjectDto(
     string Name,
     string Description,
     string Customer,
+    string Category,
+    string Stage,
     string Status,
     int ProgressPercent,
     decimal BudgetTotal,
@@ -32,12 +34,23 @@ public record ProjectTeamMemberDto(
 
 public record ProjectNoteDto(Guid Id, string Title, string Content, string AuthorName, DateTime CreatedAt);
 public record ProjectLeadTaskDto(Guid Id, string Title, string Description, string OwnerName, DateOnly DueDate, string Status);
+public record ProjectMilestoneDto(Guid Id, string Title, string Description, string OwnerName, DateOnly DueDate, string Status);
+public record ProjectDecisionDto(Guid Id, string Title, string Context, string Decision, string OwnerName, DateOnly DueDate, string Status);
+public record ProjectDocumentDto(Guid Id, string Title, string Category, string Url, string Status, string OwnerName, DateTime CreatedAt);
+public record ProjectGovernanceCheckDto(Guid Id, string Title, string Area, string Notes, string OwnerName, DateOnly DueDate, string Status);
+public record ProjectKnowledgeItemDto(Guid Id, string Title, string SourceType, string SourceLabel, string Content, List<string> Tags, string AuthorName, int Importance, DateTime CreatedAt);
 
 public record ProjectDetailDto(
     Guid Id,
     string Name,
     string Description,
     string Customer,
+    string Category,
+    string Stage,
+    string DeliveryModel,
+    string Sponsor,
+    string ExecutiveSummary,
+    string HealthSummary,
     string Objective,
     string Scope,
     string SuccessMetric,
@@ -55,12 +68,17 @@ public record ProjectDetailDto(
     DateTime CreatedAt,
     List<ProjectTeamMemberDto> TeamMembers,
     List<ProjectNoteDto> Notes,
-    List<ProjectLeadTaskDto> LeadTasks
+    List<ProjectLeadTaskDto> LeadTasks,
+    List<ProjectMilestoneDto> Milestones,
+    List<ProjectDecisionDto> Decisions,
+    List<ProjectDocumentDto> Documents,
+    List<ProjectGovernanceCheckDto> GovernanceChecks,
+    List<ProjectKnowledgeItemDto> KnowledgeItems
 );
 
 public record CreateProjectRequest(string Name, string Description, string Customer, decimal BudgetTotal, DateOnly StartDate, DateOnly EndDate);
-public record UpdateProjectRequest(string? Name, string? Description, string? Customer, string? Objective, string? Scope, string? SuccessMetric, string? Communication, string? NextMilestone, List<string>? Stakeholders, List<string>? Technologies, string? Status, int? ProgressPercent, decimal? BudgetTotal, decimal? BudgetSpent, DateOnly? StartDate, DateOnly? EndDate);
-public record PortfolioDto(List<ProjectDto> Projects, int TotalProjects, int GreenCount, int YellowCount, int RedCount, decimal TotalBudget, decimal SpentBudget, int TotalTasks, int OverdueTasks);
+public record UpdateProjectRequest(string? Name, string? Description, string? Customer, string? Category, string? Stage, string? DeliveryModel, string? Sponsor, string? ExecutiveSummary, string? HealthSummary, string? Objective, string? Scope, string? SuccessMetric, string? Communication, string? NextMilestone, List<string>? Stakeholders, List<string>? Technologies, string? Status, int? ProgressPercent, decimal? BudgetTotal, decimal? BudgetSpent, DateOnly? StartDate, DateOnly? EndDate);
+public record PortfolioDto(List<ProjectDto> Projects, int TotalProjects, int GreenCount, int YellowCount, int RedCount, decimal TotalBudget, decimal SpentBudget, int TotalTasks, int OverdueTasks, int OpenDecisions, int OverdueMilestones, int OpenGovernanceItems);
 
 public record AssignProjectTeamMemberRequest(Guid UserId, string ProjectRole, string Responsibility, int AllocatedHours);
 public record UpdateProjectTeamMemberRequest(string? ProjectRole, string? Responsibility, int? AllocatedHours);
@@ -82,6 +100,25 @@ public record UpdateTeamMemberRequest(string? Name, string? Role);
 public record CreateProjectNoteRequest(string Title, string Content);
 public record CreateProjectLeadTaskRequest(string Title, string Description, Guid? OwnerId, DateOnly DueDate);
 public record UpdateProjectLeadTaskStatusRequest(string Status);
+public record CreateProjectMilestoneRequest(string Title, string Description, Guid? OwnerId, DateOnly DueDate);
+public record UpdateProjectMilestoneStatusRequest(string Status);
+public record CreateProjectDecisionRequest(string Title, string Context, string Decision, Guid? OwnerId, DateOnly DueDate);
+public record UpdateProjectDecisionStatusRequest(string Status);
+public record CreateProjectDocumentRequest(string Title, string Category, string Url, string Status, Guid? OwnerId);
+public record CreateProjectGovernanceCheckRequest(string Title, string Area, string Notes, Guid? OwnerId, DateOnly DueDate);
+public record UpdateProjectGovernanceCheckStatusRequest(string Status);
+public record CreateProjectKnowledgeItemRequest(string Title, string SourceType, string SourceLabel, string Content, List<string>? Tags, int? Importance);
+public record GovernanceOverviewProjectDto(Guid ProjectId, string ProjectName, string Category, string Stage, string Status, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones);
+public record GovernanceOverviewDto(List<GovernanceOverviewProjectDto> Projects, int TotalProjects, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones);
 
 public record AiChatRequest(string Message, Guid? ProjectId);
 public record AiChatResponse(string Reply);
+public record AiSuggestionDto(Guid ProjectId, string ProjectName, string Type, string Title, string Reason, string Recommendation, string Priority, List<string> Sources, string FeedbackStatus);
+public record AiSuggestionFeedbackDto(Guid Id, Guid ProjectId, string SuggestionType, string SuggestionTitle, string Status, string Notes, string UserName, DateTime CreatedAt);
+public record CreateAiSuggestionFeedbackRequest(Guid ProjectId, string Type, string Title, string Status, string Notes);
+public record WeeklyStatusDto(Guid ProjectId, string ProjectName, string Summary, string DeliveryFocus, string RiskFocus, string GovernanceFocus, List<string> Highlights, List<string> NextActions);
+public record ImportAnalyzeRequest(Guid ProjectId, string SourceType, string Content);
+public record ImportPreviewRowDto(int RowNumber, List<string> Values);
+public record ImportAnalyzeResponse(Guid ProjectId, string SourceType, int RowCount, int ColumnCount, List<string> Headers, List<ImportPreviewRowDto> Rows, string Summary);
+public record ImportCommitRequest(Guid ProjectId, string SourceType, string Title, string Content);
+public record ImportCommitResponse(Guid ProjectId, string Title, string SourceType, int ImportedRows, string Summary);
