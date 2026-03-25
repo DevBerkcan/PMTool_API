@@ -133,3 +133,5 @@ public record MeetingAnalyzeResponse(Guid ProjectId, string SourceType, string T
 public record MeetingCommitRequest(Guid ProjectId, string SourceType, string Title, string Content);
 public record MeetingCommitResponse(Guid ProjectId, string Title, int CreatedTasks, int CreatedDecisions, int CreatedRisks, int CreatedKnowledgeItems, string Summary);
 public record GraphIntegrationStatusDto(bool IsConfigured, string ClientId, string TenantId, string RedirectUri, List<string> Scopes, string SetupHint);
+public record GraphAuthStartResponse(string AuthorizationUrl, string State, string RedirectUri);
+public record GraphAuthCallbackResponse(bool Success, string Message, string Scope, int ExpiresIn, string TokenType);
