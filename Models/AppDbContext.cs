@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<ProjectKnowledgeItem> ProjectKnowledgeItems => Set<ProjectKnowledgeItem>();
     public DbSet<AiSuggestionFeedback> AiSuggestionFeedback => Set<AiSuggestionFeedback>();
     public DbSet<ProjectTeamsLink> ProjectTeamsLinks => Set<ProjectTeamsLink>();
+    public DbSet<ProjectJiraLink> ProjectJiraLinks => Set<ProjectJiraLink>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -52,10 +53,12 @@ public class AppDbContext : DbContext
         mb.Entity<AiSuggestionFeedback>().HasOne(t => t.Project).WithMany(p => p.AiSuggestionFeedback).HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<AiSuggestionFeedback>().HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<ProjectTeamsLink>().HasOne(t => t.Project).WithOne(p => p.TeamsLink).HasForeignKey<ProjectTeamsLink>(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<ProjectJiraLink>().HasOne(t => t.Project).WithOne(p => p.JiraLink).HasForeignKey<ProjectJiraLink>(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<Project>().HasIndex(p => p.TenantId);
         mb.Entity<ProjectTask>().HasIndex(t => t.ProjectId);
         mb.Entity<ResourceAllocation>().HasIndex(r => new { r.UserId, r.ProjectId }).IsUnique();
         mb.Entity<ProjectTeamsLink>().HasIndex(t => t.ProjectId).IsUnique();
+        mb.Entity<ProjectJiraLink>().HasIndex(t => t.ProjectId).IsUnique();
 
         var tenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var ownerId = Guid.Parse("22222222-2222-2222-2222-222222222222");

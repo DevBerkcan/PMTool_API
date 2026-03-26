@@ -404,6 +404,21 @@ CREATE TABLE [ProjectTeamsLinks](
     CONSTRAINT [FK_ProjectTeamsLinks_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE
 )");
 
+    EnsureTable(db, "ProjectJiraLinks", @"
+CREATE TABLE [ProjectJiraLinks](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [ProjectId] uniqueidentifier NOT NULL,
+    [BoardName] nvarchar(200) NOT NULL,
+    [ProjectKey] nvarchar(100) NOT NULL,
+    [BoardId] nvarchar(100) NOT NULL,
+    [JqlFilter] nvarchar(1000) NOT NULL,
+    [SyncStatus] nvarchar(20) NOT NULL,
+    [LastSyncAt] datetime2 NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_ProjectJiraLinks_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE
+)");
+
     EnsureIndex(db, "ProjectMilestones", "IX_ProjectMilestones_ProjectId", "CREATE INDEX [IX_ProjectMilestones_ProjectId] ON [ProjectMilestones]([ProjectId])");
     EnsureIndex(db, "ProjectMilestones", "IX_ProjectMilestones_OwnerId", "CREATE INDEX [IX_ProjectMilestones_OwnerId] ON [ProjectMilestones]([OwnerId])");
     EnsureIndex(db, "ProjectDecisions", "IX_ProjectDecisions_ProjectId", "CREATE INDEX [IX_ProjectDecisions_ProjectId] ON [ProjectDecisions]([ProjectId])");
@@ -417,4 +432,5 @@ CREATE TABLE [ProjectTeamsLinks](
     EnsureIndex(db, "AiSuggestionFeedback", "IX_AiSuggestionFeedback_ProjectId", "CREATE INDEX [IX_AiSuggestionFeedback_ProjectId] ON [AiSuggestionFeedback]([ProjectId])");
     EnsureIndex(db, "AiSuggestionFeedback", "IX_AiSuggestionFeedback_UserId", "CREATE INDEX [IX_AiSuggestionFeedback_UserId] ON [AiSuggestionFeedback]([UserId])");
     EnsureIndex(db, "ProjectTeamsLinks", "IX_ProjectTeamsLinks_ProjectId", "CREATE UNIQUE INDEX [IX_ProjectTeamsLinks_ProjectId] ON [ProjectTeamsLinks]([ProjectId])");
+    EnsureIndex(db, "ProjectJiraLinks", "IX_ProjectJiraLinks_ProjectId", "CREATE UNIQUE INDEX [IX_ProjectJiraLinks_ProjectId] ON [ProjectJiraLinks]([ProjectId])");
 }

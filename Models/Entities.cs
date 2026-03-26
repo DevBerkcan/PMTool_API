@@ -69,6 +69,7 @@ public class Project : BaseEntity
     public ICollection<ProjectKnowledgeItem> KnowledgeItems { get; set; } = new List<ProjectKnowledgeItem>();
     public ICollection<AiSuggestionFeedback> AiSuggestionFeedback { get; set; } = new List<AiSuggestionFeedback>();
     public ProjectTeamsLink? TeamsLink { get; set; }
+    public ProjectJiraLink? JiraLink { get; set; }
 }
 
 public class ProjectTask : BaseEntity
@@ -239,6 +240,18 @@ public class ProjectTeamsLink : BaseEntity
     [MaxLength(200)] public string TeamId { get; set; } = "";
     [MaxLength(200)] public string ChannelId { get; set; } = "";
     [MaxLength(200)] public string TenantDomain { get; set; } = "";
+    [MaxLength(20)] public string SyncStatus { get; set; } = "planned";
+    public DateTime? LastSyncAt { get; set; }
+    public Project? Project { get; set; }
+}
+
+public class ProjectJiraLink : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    [MaxLength(200)] public string BoardName { get; set; } = "";
+    [MaxLength(100)] public string ProjectKey { get; set; } = "";
+    [MaxLength(100)] public string BoardId { get; set; } = "";
+    [MaxLength(1000)] public string JqlFilter { get; set; } = "";
     [MaxLength(20)] public string SyncStatus { get; set; } = "planned";
     public DateTime? LastSyncAt { get; set; }
     public Project? Project { get; set; }

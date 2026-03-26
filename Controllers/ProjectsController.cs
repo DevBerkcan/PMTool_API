@@ -78,6 +78,7 @@ public class ProjectsController : ControllerBase
             .Include(p => p.GovernanceChecks).ThenInclude(t => t.Owner)
             .Include(p => p.KnowledgeItems).ThenInclude(t => t.Author)
             .Include(p => p.TeamsLink)
+            .Include(p => p.JiraLink)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
 
         return project == null ? NotFound() : Ok(MapProjectDetail(project));
@@ -608,6 +609,55 @@ public class ProjectsController : ControllerBase
         return Ok(MapTeamsLink(link));
     }
 
+    [HttpGet("{id}/jira-link")]
+    public async Task<ActionResult<ProjectJiraLinkDto?>> GetJiraLink(Guid id)
+    {
+        var project = await _db.Projects
+            .Include(p => p.JiraLink)
+            .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+
+        if (project == null) return NotFound();
+        return Ok(project.JiraLink == null ? null : MapJiraLink(project.JiraLink));
+    }
+
+    [HttpPut("{id}/jira-link")]
+    public async Task<ActionResult<ProjectJiraLinkDto>> UpsertJiraLink(Guid id, [FromBody] UpsertProjectJiraLinkRequest req)
+    {
+        var project = await _db.Projects
+            .Include(p => p.JiraLink)
+            .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+
+        if (project == null) return NotFound();
+
+        var link = project.JiraLink;
+        if (link == null)
+        {
+            link = new ProjectJiraLink { ProjectId = id };
+            _db.ProjectJiraLinks.Add(link);
+        }
+
+        link.BoardName = req.BoardName?.Trim() ?? "";
+        link.ProjectKey = req.ProjectKey?.Trim().ToUpperInvariant() ?? "";
+        link.BoardId = req.BoardId?.Trim() ?? "";
+        link.JqlFilter = req.JqlFilter?.Trim() ?? "";
+        link.SyncStatus = string.IsNullOrWhiteSpace(req.SyncStatus) ? "planned" : req.SyncStatus.Trim();
+        link.LastSyncAt = link.SyncStatus == "connected" ? DateTime.UtcNow : link.LastSyncAt;
+        link.UpdatedAt = DateTime.UtcNow;
+
+        _db.ActivityLogs.Add(new ActivityLog
+        {
+            TenantId = TenantId,
+            UserId = UserId,
+            ProjectId = id,
+            EntityId = link.Id,
+            EntityType = "ProjectJiraLink",
+            Action = $"hat Jira-Link aktualisiert: {link.ProjectKey}"
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(MapJiraLink(link));
+    }
+
     private static ProjectDto MapProject(Project p) => new(
         p.Id,
         p.Name,
@@ -660,7 +710,8 @@ public class ProjectsController : ControllerBase
         p.Documents.OrderByDescending(t => t.CreatedAt).Select(MapDocument).ToList(),
         p.GovernanceChecks.OrderBy(t => t.DueDate).Select(MapGovernanceCheck).ToList(),
         p.KnowledgeItems.OrderByDescending(t => t.Importance).ThenByDescending(t => t.CreatedAt).Select(MapKnowledgeItem).ToList(),
-        p.TeamsLink == null ? null : MapTeamsLink(p.TeamsLink)
+        p.TeamsLink == null ? null : MapTeamsLink(p.TeamsLink),
+        p.JiraLink == null ? null : MapJiraLink(p.JiraLink)
     );
 
     private static ProjectTeamMemberDto MapTeamMember(ResourceAllocation allocation) => new(
@@ -682,6 +733,7 @@ public class ProjectsController : ControllerBase
     private static ProjectGovernanceCheckDto MapGovernanceCheck(ProjectGovernanceCheck check) => new(check.Id, check.Title, check.Area, check.Notes, check.Owner?.DisplayName ?? "", check.DueDate, check.Status);
     private static ProjectKnowledgeItemDto MapKnowledgeItem(ProjectKnowledgeItem item) => new(item.Id, item.Title, item.SourceType, item.SourceLabel, item.Content, SplitList(item.TagsCsv), item.Author?.DisplayName ?? "", item.Importance, item.CreatedAt);
     private static ProjectTeamsLinkDto MapTeamsLink(ProjectTeamsLink link) => new(link.ProjectId, link.TeamName, link.ChannelName, link.TeamId, link.ChannelId, link.TenantDomain, link.SyncStatus, link.LastSyncAt);
+    private static ProjectJiraLinkDto MapJiraLink(ProjectJiraLink link) => new(link.ProjectId, link.BoardName, link.ProjectKey, link.BoardId, link.JqlFilter, link.SyncStatus, link.LastSyncAt);
 
     private static List<string> SplitList(string value) => value
         .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

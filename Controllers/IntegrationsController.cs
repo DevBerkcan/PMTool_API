@@ -42,6 +42,29 @@ public class IntegrationsController : ControllerBase
         ));
     }
 
+    [HttpGet("jira/status")]
+    public ActionResult<JiraIntegrationStatusDto> GetJiraStatus()
+    {
+        var baseUrl = (_configuration["Jira:BaseUrl"] ?? "").Trim().TrimEnd('/');
+        var email = (_configuration["Jira:Email"] ?? "").Trim();
+        var authMode = string.IsNullOrWhiteSpace(_configuration["Jira:AuthMode"]) ? "basic" : _configuration["Jira:AuthMode"]!.Trim().ToLowerInvariant();
+        var apiToken = (_configuration["Jira:ApiToken"] ?? "").Trim();
+
+        var configured = !string.IsNullOrWhiteSpace(baseUrl)
+            && !string.IsNullOrWhiteSpace(apiToken)
+            && (authMode == "bearer" || !string.IsNullOrWhiteSpace(email));
+
+        return Ok(new JiraIntegrationStatusDto(
+            configured,
+            baseUrl,
+            authMode,
+            email,
+            configured
+                ? "Jira ist vorbereitet. Als naechstes koennen Projektschluessel und Boards pro Projekt verknuepft werden."
+                : "BaseUrl, ApiToken und bei Basic-Auth zusaetzlich Email in der Backend-Konfiguration setzen, um Jira-Tickets laden zu koennen."
+        ));
+    }
+
     [HttpGet("graph/auth/start")]
     public ActionResult<GraphAuthStartResponse> GetGraphAuthStart()
     {

@@ -40,6 +40,7 @@ public record ProjectDocumentDto(Guid Id, string Title, string Category, string 
 public record ProjectGovernanceCheckDto(Guid Id, string Title, string Area, string Notes, string OwnerName, DateOnly DueDate, string Status);
 public record ProjectKnowledgeItemDto(Guid Id, string Title, string SourceType, string SourceLabel, string Content, List<string> Tags, string AuthorName, int Importance, DateTime CreatedAt);
 public record ProjectTeamsLinkDto(Guid ProjectId, string TeamName, string ChannelName, string TeamId, string ChannelId, string TenantDomain, string SyncStatus, DateTime? LastSyncAt);
+public record ProjectJiraLinkDto(Guid ProjectId, string BoardName, string ProjectKey, string BoardId, string JqlFilter, string SyncStatus, DateTime? LastSyncAt);
 
 public record ProjectDetailDto(
     Guid Id,
@@ -75,7 +76,8 @@ public record ProjectDetailDto(
     List<ProjectDocumentDto> Documents,
     List<ProjectGovernanceCheckDto> GovernanceChecks,
     List<ProjectKnowledgeItemDto> KnowledgeItems,
-    ProjectTeamsLinkDto? TeamsLink
+    ProjectTeamsLinkDto? TeamsLink,
+    ProjectJiraLinkDto? JiraLink
 );
 
 public record CreateProjectRequest(string Name, string Description, string Customer, decimal BudgetTotal, DateOnly StartDate, DateOnly EndDate);
@@ -111,6 +113,7 @@ public record CreateProjectGovernanceCheckRequest(string Title, string Area, str
 public record UpdateProjectGovernanceCheckStatusRequest(string Status);
 public record CreateProjectKnowledgeItemRequest(string Title, string SourceType, string SourceLabel, string Content, List<string>? Tags, int? Importance);
 public record UpsertProjectTeamsLinkRequest(string TeamName, string ChannelName, string TeamId, string ChannelId, string TenantDomain, string SyncStatus);
+public record UpsertProjectJiraLinkRequest(string BoardName, string ProjectKey, string BoardId, string JqlFilter, string SyncStatus);
 public record GovernanceOverviewProjectDto(Guid ProjectId, string ProjectName, string Category, string Stage, string Status, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones);
 public record GovernanceOverviewDto(List<GovernanceOverviewProjectDto> Projects, int TotalProjects, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones);
 
@@ -135,3 +138,7 @@ public record MeetingCommitResponse(Guid ProjectId, string Title, int CreatedTas
 public record GraphIntegrationStatusDto(bool IsConfigured, string ClientId, string TenantId, string RedirectUri, List<string> Scopes, string SetupHint);
 public record GraphAuthStartResponse(string AuthorizationUrl, string State, string RedirectUri);
 public record GraphAuthCallbackResponse(bool Success, string Message, string Scope, int ExpiresIn, string TokenType);
+public record JiraIntegrationStatusDto(bool IsConfigured, string BaseUrl, string AuthMode, string AccountEmail, string SetupHint);
+public record JiraTicketDto(string Key, string Summary, string Status, string StatusCategory, string Priority, string IssueType, string AssigneeName, string AssigneeEmail, string Url, DateTime? UpdatedAt, DateOnly? DueDate);
+public record JiraAssigneeTicketsDto(string AssigneeName, string AssigneeEmail, int TotalTickets, int TodoTickets, int InProgressTickets, int DoneTickets, List<JiraTicketDto> Tickets);
+public record JiraProjectTicketsDto(Guid ProjectId, string ProjectName, string BoardName, string ProjectKey, string Jql, int TotalTickets, int UnassignedTickets, List<JiraAssigneeTicketsDto> Assignees, List<JiraTicketDto> Tickets);
