@@ -293,6 +293,13 @@ static void EnsureSqlServerCompatibility(AppDbContext db)
     EnsureColumn(db, "Projects", "TechnologiesCsv", "nvarchar(max) NOT NULL CONSTRAINT DF_Projects_TechnologiesCsv DEFAULT ''");
     EnsureColumn(db, "ResourceAllocations", "ProjectRole", "nvarchar(100) NOT NULL CONSTRAINT DF_ResourceAllocations_ProjectRole DEFAULT ''");
     EnsureColumn(db, "ResourceAllocations", "Responsibility", "nvarchar(max) NOT NULL CONSTRAINT DF_ResourceAllocations_Responsibility DEFAULT ''");
+    EnsureColumn(db, "ProjectKnowledgeItems", "Category", "nvarchar(50) NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_Category DEFAULT 'general'");
+    EnsureColumn(db, "ProjectKnowledgeItems", "SourceFileName", "nvarchar(260) NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_SourceFileName DEFAULT ''");
+    EnsureColumn(db, "ProjectKnowledgeItems", "Version", "int NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_Version DEFAULT 1");
+    EnsureColumn(db, "ProjectKnowledgeItems", "ParentKnowledgeItemId", "uniqueidentifier NULL");
+    EnsureColumn(db, "ProjectKnowledgeItems", "LinkedEntityType", "nvarchar(50) NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_LinkedEntityType DEFAULT ''");
+    EnsureColumn(db, "ProjectKnowledgeItems", "LinkedEntityId", "uniqueidentifier NULL");
+    EnsureColumn(db, "ProjectKnowledgeItems", "MeetingReference", "nvarchar(200) NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_MeetingReference DEFAULT ''");
 
     EnsureTable(db, "ProjectMilestones", @"
 CREATE TABLE [ProjectMilestones](
@@ -356,6 +363,58 @@ CREATE TABLE [ProjectGovernanceChecks](
     CONSTRAINT [FK_ProjectGovernanceChecks_Users_OwnerId] FOREIGN KEY ([OwnerId]) REFERENCES [Users]([Id])
 )");
 
+    EnsureTable(db, "ProjectStageGates", @"
+CREATE TABLE [ProjectStageGates](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [ProjectId] uniqueidentifier NOT NULL,
+    [OwnerId] uniqueidentifier NOT NULL,
+    [Title] nvarchar(200) NOT NULL,
+    [StageKey] nvarchar(100) NOT NULL,
+    [GateOrder] int NOT NULL,
+    [Status] nvarchar(20) NOT NULL,
+    [DueDate] date NOT NULL,
+    [Notes] nvarchar(max) NOT NULL,
+    [ApprovalSummary] nvarchar(max) NOT NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_ProjectStageGates_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_ProjectStageGates_Users_OwnerId] FOREIGN KEY ([OwnerId]) REFERENCES [Users]([Id])
+)");
+
+    EnsureTable(db, "ProjectStageGateChecks", @"
+CREATE TABLE [ProjectStageGateChecks](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [StageGateId] uniqueidentifier NOT NULL,
+    [Title] nvarchar(200) NOT NULL,
+    [RequirementType] nvarchar(100) NOT NULL,
+    [Status] nvarchar(20) NOT NULL,
+    [IsMandatory] bit NOT NULL,
+    [Notes] nvarchar(max) NOT NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_ProjectStageGateChecks_ProjectStageGates_StageGateId] FOREIGN KEY ([StageGateId]) REFERENCES [ProjectStageGates]([Id]) ON DELETE CASCADE
+)");
+
+    EnsureTable(db, "ProjectApprovals", @"
+CREATE TABLE [ProjectApprovals](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [ProjectId] uniqueidentifier NOT NULL,
+    [StageGateId] uniqueidentifier NULL,
+    [RequestedById] uniqueidentifier NOT NULL,
+    [DecidedById] uniqueidentifier NULL,
+    [Title] nvarchar(200) NOT NULL,
+    [ApprovalType] nvarchar(100) NOT NULL,
+    [Status] nvarchar(20) NOT NULL,
+    [DueDate] date NOT NULL,
+    [DecisionNotes] nvarchar(max) NOT NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_ProjectApprovals_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_ProjectApprovals_ProjectStageGates_StageGateId] FOREIGN KEY ([StageGateId]) REFERENCES [ProjectStageGates]([Id]),
+    CONSTRAINT [FK_ProjectApprovals_Users_RequestedById] FOREIGN KEY ([RequestedById]) REFERENCES [Users]([Id]),
+    CONSTRAINT [FK_ProjectApprovals_Users_DecidedById] FOREIGN KEY ([DecidedById]) REFERENCES [Users]([Id])
+)");
+
     EnsureTable(db, "ProjectKnowledgeItems", @"
 CREATE TABLE [ProjectKnowledgeItems](
     [Id] uniqueidentifier NOT NULL PRIMARY KEY,
@@ -364,6 +423,13 @@ CREATE TABLE [ProjectKnowledgeItems](
     [Title] nvarchar(200) NOT NULL,
     [SourceType] nvarchar(50) NOT NULL,
     [SourceLabel] nvarchar(500) NOT NULL,
+    [Category] nvarchar(50) NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_Category DEFAULT 'general',
+    [SourceFileName] nvarchar(260) NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_SourceFileName DEFAULT '',
+    [Version] int NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_Version DEFAULT 1,
+    [ParentKnowledgeItemId] uniqueidentifier NULL,
+    [LinkedEntityType] nvarchar(50) NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_LinkedEntityType DEFAULT '',
+    [LinkedEntityId] uniqueidentifier NULL,
+    [MeetingReference] nvarchar(200) NOT NULL CONSTRAINT DF_ProjectKnowledgeItems_MeetingReference DEFAULT '',
     [Content] nvarchar(max) NOT NULL,
     [TagsCsv] nvarchar(max) NOT NULL,
     [Importance] int NOT NULL,
@@ -386,6 +452,47 @@ CREATE TABLE [AiSuggestionFeedback](
     [UpdatedAt] datetime2 NOT NULL,
     CONSTRAINT [FK_AiSuggestionFeedback_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE,
     CONSTRAINT [FK_AiSuggestionFeedback_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users]([Id])
+)");
+
+    EnsureTable(db, "AuditEntries", @"
+CREATE TABLE [AuditEntries](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [TenantId] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [ProjectId] uniqueidentifier NULL,
+    [EntityId] uniqueidentifier NULL,
+    [EntityType] nvarchar(50) NOT NULL,
+    [ChangeType] nvarchar(50) NOT NULL,
+    [Title] nvarchar(200) NOT NULL,
+    [FromValue] nvarchar(500) NOT NULL,
+    [ToValue] nvarchar(500) NOT NULL,
+    [Detail] nvarchar(max) NOT NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_AuditEntries_Tenants_TenantId] FOREIGN KEY ([TenantId]) REFERENCES [Tenants]([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_AuditEntries_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users]([Id]),
+    CONSTRAINT [FK_AuditEntries_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id])
+)");
+
+    EnsureTable(db, "ProjectForecastSnapshots", @"
+CREATE TABLE [ProjectForecastSnapshots](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [ProjectId] uniqueidentifier NOT NULL,
+    [SnapshotDate] date NOT NULL,
+    [BudgetAtCompletion] decimal(18,2) NOT NULL,
+    [ActualCost] decimal(18,2) NOT NULL,
+    [EarnedValue] decimal(18,2) NOT NULL,
+    [PlannedValue] decimal(18,2) NOT NULL,
+    [EstimateAtCompletion] decimal(18,2) NOT NULL,
+    [EstimateToComplete] decimal(18,2) NOT NULL,
+    [CostPerformanceIndex] decimal(18,4) NOT NULL,
+    [SchedulePerformanceIndex] decimal(18,4) NOT NULL,
+    [TotalEstimatedHours] int NOT NULL,
+    [LoggedHours] int NOT NULL,
+    [RemainingHours] int NOT NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_ProjectForecastSnapshots_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE
 )");
 
     EnsureTable(db, "ProjectTeamsLinks", @"
@@ -427,10 +534,19 @@ CREATE TABLE [ProjectJiraLinks](
     EnsureIndex(db, "ProjectDocuments", "IX_ProjectDocuments_OwnerId", "CREATE INDEX [IX_ProjectDocuments_OwnerId] ON [ProjectDocuments]([OwnerId])");
     EnsureIndex(db, "ProjectGovernanceChecks", "IX_ProjectGovernanceChecks_ProjectId", "CREATE INDEX [IX_ProjectGovernanceChecks_ProjectId] ON [ProjectGovernanceChecks]([ProjectId])");
     EnsureIndex(db, "ProjectGovernanceChecks", "IX_ProjectGovernanceChecks_OwnerId", "CREATE INDEX [IX_ProjectGovernanceChecks_OwnerId] ON [ProjectGovernanceChecks]([OwnerId])");
+    EnsureIndex(db, "ProjectStageGates", "IX_ProjectStageGates_ProjectId", "CREATE INDEX [IX_ProjectStageGates_ProjectId] ON [ProjectStageGates]([ProjectId])");
+    EnsureIndex(db, "ProjectStageGates", "IX_ProjectStageGates_OwnerId", "CREATE INDEX [IX_ProjectStageGates_OwnerId] ON [ProjectStageGates]([OwnerId])");
+    EnsureIndex(db, "ProjectStageGateChecks", "IX_ProjectStageGateChecks_StageGateId", "CREATE INDEX [IX_ProjectStageGateChecks_StageGateId] ON [ProjectStageGateChecks]([StageGateId])");
+    EnsureIndex(db, "ProjectApprovals", "IX_ProjectApprovals_ProjectId", "CREATE INDEX [IX_ProjectApprovals_ProjectId] ON [ProjectApprovals]([ProjectId])");
+    EnsureIndex(db, "ProjectApprovals", "IX_ProjectApprovals_StageGateId", "CREATE INDEX [IX_ProjectApprovals_StageGateId] ON [ProjectApprovals]([StageGateId])");
+    EnsureIndex(db, "ProjectApprovals", "IX_ProjectApprovals_RequestedById", "CREATE INDEX [IX_ProjectApprovals_RequestedById] ON [ProjectApprovals]([RequestedById])");
     EnsureIndex(db, "ProjectKnowledgeItems", "IX_ProjectKnowledgeItems_ProjectId", "CREATE INDEX [IX_ProjectKnowledgeItems_ProjectId] ON [ProjectKnowledgeItems]([ProjectId])");
     EnsureIndex(db, "ProjectKnowledgeItems", "IX_ProjectKnowledgeItems_AuthorId", "CREATE INDEX [IX_ProjectKnowledgeItems_AuthorId] ON [ProjectKnowledgeItems]([AuthorId])");
     EnsureIndex(db, "AiSuggestionFeedback", "IX_AiSuggestionFeedback_ProjectId", "CREATE INDEX [IX_AiSuggestionFeedback_ProjectId] ON [AiSuggestionFeedback]([ProjectId])");
     EnsureIndex(db, "AiSuggestionFeedback", "IX_AiSuggestionFeedback_UserId", "CREATE INDEX [IX_AiSuggestionFeedback_UserId] ON [AiSuggestionFeedback]([UserId])");
+    EnsureIndex(db, "AuditEntries", "IX_AuditEntries_TenantId", "CREATE INDEX [IX_AuditEntries_TenantId] ON [AuditEntries]([TenantId])");
+    EnsureIndex(db, "AuditEntries", "IX_AuditEntries_ProjectId", "CREATE INDEX [IX_AuditEntries_ProjectId] ON [AuditEntries]([ProjectId])");
+    EnsureIndex(db, "ProjectForecastSnapshots", "IX_ProjectForecastSnapshots_ProjectId_SnapshotDate", "CREATE UNIQUE INDEX [IX_ProjectForecastSnapshots_ProjectId_SnapshotDate] ON [ProjectForecastSnapshots]([ProjectId], [SnapshotDate])");
     EnsureIndex(db, "ProjectTeamsLinks", "IX_ProjectTeamsLinks_ProjectId", "CREATE UNIQUE INDEX [IX_ProjectTeamsLinks_ProjectId] ON [ProjectTeamsLinks]([ProjectId])");
     EnsureIndex(db, "ProjectJiraLinks", "IX_ProjectJiraLinks_ProjectId", "CREATE UNIQUE INDEX [IX_ProjectJiraLinks_ProjectId] ON [ProjectJiraLinks]([ProjectId])");
 }

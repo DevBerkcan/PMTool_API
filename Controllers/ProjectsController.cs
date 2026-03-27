@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PmTool.Api.Models;
+using PmTool.Api.Security;
 using System.Security.Claims;
 
 namespace PmTool.Api.Controllers;
@@ -12,6 +13,7 @@ public class ProjectsController : ControllerBase
     private readonly AppDbContext _db;
     private Guid TenantId => Guid.Parse(User.FindFirstValue("tenantId")!);
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private string CurrentRole => User.FindFirstValue(ClaimTypes.Role) ?? "";
 
     public ProjectsController(AppDbContext db) => _db = db;
 
@@ -30,6 +32,16 @@ public class ProjectsController : ControllerBase
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var allTasks = projects.SelectMany(p => p.Tasks).ToList();
+        var capacityLoads = projects
+            .SelectMany(p => p.TeamAssignments)
+            .GroupBy(a => a.UserId)
+            .Select(group => group.Sum(item => item.AllocatedHours))
+            .ToList();
+        var weightedForecasts = projects
+            .Where(project => project.ProgressPercent > 0 && project.BudgetSpent > 0)
+            .Select(project => project.BudgetSpent / Math.Max(project.ProgressPercent, 1) * 100)
+            .ToList();
+        var forecastBudget = weightedForecasts.Count > 0 ? weightedForecasts.Sum() : projects.Sum(project => project.BudgetTotal);
 
         return Ok(new PortfolioDto(
             projects.Select(MapProject).ToList(),
@@ -39,11 +51,15 @@ public class ProjectsController : ControllerBase
             projects.Count(p => p.Status == "red"),
             projects.Sum(p => p.BudgetTotal),
             projects.Sum(p => p.BudgetSpent),
+            forecastBudget,
+            forecastBudget - projects.Sum(p => p.BudgetTotal),
             allTasks.Count(t => t.Status != "done"),
             allTasks.Count(t => t.DueDate.HasValue && t.DueDate < today && t.Status != "done"),
             projects.SelectMany(p => p.Decisions).Count(d => d.Status == "open" || d.Status == "review"),
             projects.SelectMany(p => p.Milestones).Count(m => m.DueDate < today && m.Status != "done"),
-            projects.SelectMany(p => p.GovernanceChecks).Count(g => g.Status != "done")
+            projects.SelectMany(p => p.GovernanceChecks).Count(g => g.Status != "done"),
+            capacityLoads.Count(load => load > 40),
+            capacityLoads.Count(load => load >= 36 && load <= 40)
         ));
     }
 
@@ -76,6 +92,10 @@ public class ProjectsController : ControllerBase
             .Include(p => p.Decisions).ThenInclude(t => t.Owner)
             .Include(p => p.Documents).ThenInclude(t => t.Owner)
             .Include(p => p.GovernanceChecks).ThenInclude(t => t.Owner)
+            .Include(p => p.StageGates).ThenInclude(g => g.Owner)
+            .Include(p => p.StageGates).ThenInclude(g => g.Checks)
+            .Include(p => p.Approvals).ThenInclude(a => a.RequestedBy)
+            .Include(p => p.Approvals).ThenInclude(a => a.DecidedBy)
             .Include(p => p.KnowledgeItems).ThenInclude(t => t.Author)
             .Include(p => p.TeamsLink)
             .Include(p => p.JiraLink)
@@ -84,9 +104,119 @@ public class ProjectsController : ControllerBase
         return project == null ? NotFound() : Ok(MapProjectDetail(project));
     }
 
+    [HttpGet("{id}/forecast")]
+    public async Task<ActionResult<ProjectForecastDto>> GetForecast(Guid id)
+    {
+        var project = await _db.Projects
+            .Where(p => p.Id == id && p.TenantId == TenantId)
+            .Include(p => p.Tasks)
+            .FirstOrDefaultAsync();
+
+        if (project == null) return NotFound();
+
+        var totalEstimatedHours = project.Tasks.Sum(task => task.EstimatedHours);
+        var loggedHours = project.Tasks.Sum(task => task.LoggedHours);
+        var remainingHours = Math.Max(totalEstimatedHours - loggedHours, 0);
+
+        var budgetAtCompletion = project.BudgetTotal;
+        var actualCost = project.BudgetSpent;
+        var earnedValue = budgetAtCompletion * project.ProgressPercent / 100m;
+
+        var totalDurationDays = Math.Max((project.EndDate.ToDateTime(TimeOnly.MinValue) - project.StartDate.ToDateTime(TimeOnly.MinValue)).Days, 1);
+        var elapsedDays = Math.Clamp((DateTime.UtcNow.Date - project.StartDate.ToDateTime(TimeOnly.MinValue)).Days, 0, totalDurationDays);
+        var plannedProgressPercent = Math.Clamp((decimal)elapsedDays / totalDurationDays * 100m, 0m, 100m);
+        var plannedValue = budgetAtCompletion * plannedProgressPercent / 100m;
+
+        var costVariance = earnedValue - actualCost;
+        var scheduleVariance = earnedValue - plannedValue;
+        var costPerformanceIndex = actualCost > 0 ? earnedValue / actualCost : 1m;
+        var schedulePerformanceIndex = plannedValue > 0 ? earnedValue / plannedValue : 1m;
+        var estimateAtCompletion = costPerformanceIndex > 0 ? budgetAtCompletion / costPerformanceIndex : budgetAtCompletion;
+        var estimateToComplete = Math.Max(estimateAtCompletion - actualCost, 0);
+
+        var forecastComment = costPerformanceIndex < 0.9m
+            ? "Kostenverlauf ist kritisch. Budgetverbrauch liegt ueber dem erzielten Fortschritt."
+            : schedulePerformanceIndex < 0.9m
+                ? "Projekt liegt hinter dem Plan. Meilensteine und Restaufwand muessen neu bewertet werden."
+                : "Projekt bewegt sich im erwarteten Kosten- und Terminrahmen.";
+
+        var snapshotDate = GetWeekStart(DateOnly.FromDateTime(DateTime.UtcNow));
+        var existingSnapshot = await _db.ProjectForecastSnapshots
+            .FirstOrDefaultAsync(snapshot => snapshot.ProjectId == project.Id && snapshot.SnapshotDate == snapshotDate);
+
+        if (existingSnapshot == null)
+        {
+            _db.ProjectForecastSnapshots.Add(new ProjectForecastSnapshot
+            {
+                ProjectId = project.Id,
+                SnapshotDate = snapshotDate,
+                BudgetAtCompletion = budgetAtCompletion,
+                ActualCost = actualCost,
+                EarnedValue = earnedValue,
+                PlannedValue = plannedValue,
+                EstimateAtCompletion = estimateAtCompletion,
+                EstimateToComplete = estimateToComplete,
+                CostPerformanceIndex = Math.Round(costPerformanceIndex, 4),
+                SchedulePerformanceIndex = Math.Round(schedulePerformanceIndex, 4),
+                TotalEstimatedHours = totalEstimatedHours,
+                LoggedHours = loggedHours,
+                RemainingHours = remainingHours
+            });
+            await _db.SaveChangesAsync();
+        }
+
+        return Ok(new ProjectForecastDto(
+            project.Id,
+            project.Name,
+            budgetAtCompletion,
+            actualCost,
+            earnedValue,
+            plannedValue,
+            costVariance,
+            scheduleVariance,
+            estimateAtCompletion,
+            estimateToComplete,
+            Math.Round(costPerformanceIndex, 2),
+            Math.Round(schedulePerformanceIndex, 2),
+            totalEstimatedHours,
+            loggedHours,
+            remainingHours,
+            forecastComment
+        ));
+    }
+
+    [HttpGet("{id}/forecast/snapshots")]
+    public async Task<ActionResult<List<ProjectForecastSnapshotDto>>> GetForecastSnapshots(Guid id)
+    {
+        var projectExists = await _db.Projects.AnyAsync(project => project.Id == id && project.TenantId == TenantId);
+        if (!projectExists) return NotFound();
+
+        var snapshots = await _db.ProjectForecastSnapshots
+            .Where(snapshot => snapshot.ProjectId == id)
+            .OrderByDescending(snapshot => snapshot.SnapshotDate)
+            .Take(12)
+            .ToListAsync();
+
+        return Ok(snapshots.Select(snapshot => new ProjectForecastSnapshotDto(
+            snapshot.Id,
+            snapshot.SnapshotDate,
+            snapshot.BudgetAtCompletion,
+            snapshot.ActualCost,
+            snapshot.EarnedValue,
+            snapshot.PlannedValue,
+            snapshot.EstimateAtCompletion,
+            snapshot.EstimateToComplete,
+            snapshot.CostPerformanceIndex,
+            snapshot.SchedulePerformanceIndex,
+            snapshot.RemainingHours
+        )));
+    }
+
     [HttpPost]
     public async Task<ActionResult<ProjectDto>> Create([FromBody] CreateProjectRequest req)
     {
+        if (!RoleAccess.CanManagePortfolio(CurrentRole)) return Forbid();
+
         var project = new Project
         {
             TenantId = TenantId,
@@ -111,6 +241,8 @@ public class ProjectsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProjectRequest req)
     {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
         if (project == null) return NotFound();
 
@@ -146,6 +278,8 @@ public class ProjectsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
+        if (!RoleAccess.CanManagePortfolio(CurrentRole)) return Forbid();
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
         if (project == null) return NotFound();
         _db.Projects.Remove(project);
@@ -171,6 +305,8 @@ public class ProjectsController : ControllerBase
     [HttpPost("{id}/team")]
     public async Task<ActionResult<ProjectTeamMemberDto>> AddTeamMember(Guid id, [FromBody] AssignProjectTeamMemberRequest req)
     {
+        if (!RoleAccess.CanManageTeam(CurrentRole)) return Forbid();
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
         if (project == null) return NotFound();
 
@@ -200,6 +336,8 @@ public class ProjectsController : ControllerBase
     [HttpPut("{id}/team/{userId}")]
     public async Task<IActionResult> UpdateTeamMember(Guid id, Guid userId, [FromBody] UpdateProjectTeamMemberRequest req)
     {
+        if (!RoleAccess.CanManageTeam(CurrentRole)) return Forbid();
+
         var allocation = await _db.ResourceAllocations
             .Include(a => a.Project)
             .FirstOrDefaultAsync(a => a.ProjectId == id && a.UserId == userId && a.Project!.TenantId == TenantId);
@@ -217,6 +355,8 @@ public class ProjectsController : ControllerBase
     [HttpDelete("{id}/team/{userId}")]
     public async Task<IActionResult> RemoveTeamMember(Guid id, Guid userId)
     {
+        if (!RoleAccess.CanManageTeam(CurrentRole)) return Forbid();
+
         var allocation = await _db.ResourceAllocations
             .Include(a => a.Project)
             .FirstOrDefaultAsync(a => a.ProjectId == id && a.UserId == userId && a.Project!.TenantId == TenantId);
@@ -277,6 +417,8 @@ public class ProjectsController : ControllerBase
     [HttpPost("{id}/lead-tasks")]
     public async Task<ActionResult<ProjectLeadTaskDto>> AddLeadTask(Guid id, [FromBody] CreateProjectLeadTaskRequest req)
     {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
         if (project == null) return NotFound();
 
@@ -305,6 +447,8 @@ public class ProjectsController : ControllerBase
     [HttpPatch("{id}/lead-tasks/{taskId}/status")]
     public async Task<IActionResult> UpdateLeadTaskStatus(Guid id, Guid taskId, [FromBody] UpdateProjectLeadTaskStatusRequest req)
     {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
         var task = await _db.ProjectLeadTasks
             .Include(t => t.Project)
             .FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == id && t.Project!.TenantId == TenantId);
@@ -331,6 +475,8 @@ public class ProjectsController : ControllerBase
     [HttpPost("{id}/milestones")]
     public async Task<ActionResult<ProjectMilestoneDto>> AddMilestone(Guid id, [FromBody] CreateProjectMilestoneRequest req)
     {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
         if (project == null) return NotFound();
 
@@ -359,6 +505,8 @@ public class ProjectsController : ControllerBase
     [HttpPatch("{id}/milestones/{milestoneId}/status")]
     public async Task<IActionResult> UpdateMilestoneStatus(Guid id, Guid milestoneId, [FromBody] UpdateProjectMilestoneStatusRequest req)
     {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
         var milestone = await _db.ProjectMilestones
             .Include(t => t.Project)
             .FirstOrDefaultAsync(t => t.Id == milestoneId && t.ProjectId == id && t.Project!.TenantId == TenantId);
@@ -385,6 +533,8 @@ public class ProjectsController : ControllerBase
     [HttpPost("{id}/decisions")]
     public async Task<ActionResult<ProjectDecisionDto>> AddDecision(Guid id, [FromBody] CreateProjectDecisionRequest req)
     {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
         if (project == null) return NotFound();
 
@@ -414,6 +564,8 @@ public class ProjectsController : ControllerBase
     [HttpPatch("{id}/decisions/{decisionId}/status")]
     public async Task<IActionResult> UpdateDecisionStatus(Guid id, Guid decisionId, [FromBody] UpdateProjectDecisionStatusRequest req)
     {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
         var decision = await _db.ProjectDecisions
             .Include(t => t.Project)
             .FirstOrDefaultAsync(t => t.Id == decisionId && t.ProjectId == id && t.Project!.TenantId == TenantId);
@@ -440,6 +592,8 @@ public class ProjectsController : ControllerBase
     [HttpPost("{id}/documents")]
     public async Task<ActionResult<ProjectDocumentDto>> AddDocument(Guid id, [FromBody] CreateProjectDocumentRequest req)
     {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
         if (project == null) return NotFound();
 
@@ -480,6 +634,8 @@ public class ProjectsController : ControllerBase
     [HttpPost("{id}/governance-checks")]
     public async Task<ActionResult<ProjectGovernanceCheckDto>> AddGovernanceCheck(Guid id, [FromBody] CreateProjectGovernanceCheckRequest req)
     {
+        if (!RoleAccess.CanManagePmo(CurrentRole)) return Forbid();
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
         if (project == null) return NotFound();
 
@@ -509,6 +665,8 @@ public class ProjectsController : ControllerBase
     [HttpPatch("{id}/governance-checks/{checkId}/status")]
     public async Task<IActionResult> UpdateGovernanceCheckStatus(Guid id, Guid checkId, [FromBody] UpdateProjectGovernanceCheckStatusRequest req)
     {
+        if (!RoleAccess.CanManagePmo(CurrentRole)) return Forbid();
+
         var check = await _db.ProjectGovernanceChecks
             .Include(t => t.Project)
             .FirstOrDefaultAsync(t => t.Id == checkId && t.ProjectId == id && t.Project!.TenantId == TenantId);
@@ -516,6 +674,201 @@ public class ProjectsController : ControllerBase
         if (check == null) return NotFound();
         check.Status = req.Status;
         check.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet("{id}/stage-gates")]
+    public async Task<ActionResult<List<ProjectStageGateDto>>> GetStageGates(Guid id)
+    {
+        var gates = await _db.ProjectStageGates
+            .Where(gate => gate.ProjectId == id)
+            .Include(gate => gate.Owner)
+            .Include(gate => gate.Checks)
+            .OrderBy(gate => gate.GateOrder)
+            .ThenBy(gate => gate.DueDate)
+            .ToListAsync();
+
+        return Ok(gates.Select(MapStageGate));
+    }
+
+    [HttpPost("{id}/stage-gates")]
+    public async Task<ActionResult<ProjectStageGateDto>> AddStageGate(Guid id, [FromBody] CreateProjectStageGateRequest req)
+    {
+        if (!RoleAccess.CanManagePmo(CurrentRole)) return Forbid();
+
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+        if (project == null) return NotFound();
+
+        var ownerId = req.OwnerId ?? UserId;
+        var owner = await _db.Users.FirstOrDefaultAsync(u => u.Id == ownerId && u.TenantId == TenantId);
+        if (owner == null) return BadRequest(new { message = "Owner nicht gefunden." });
+
+        var nextOrder = await _db.ProjectStageGates
+            .Where(gate => gate.ProjectId == id)
+            .Select(gate => gate.GateOrder)
+            .DefaultIfEmpty(0)
+            .MaxAsync();
+
+        var gate = new ProjectStageGate
+        {
+            ProjectId = id,
+            OwnerId = ownerId,
+            Title = req.Title,
+            StageKey = req.StageKey?.Trim() ?? "",
+            GateOrder = req.GateOrder ?? nextOrder + 1,
+            Status = "planned",
+            DueDate = req.DueDate,
+            Notes = req.Notes ?? "",
+            ApprovalSummary = req.ApprovalSummary ?? ""
+        };
+
+        _db.ProjectStageGates.Add(gate);
+        _db.ActivityLogs.Add(new ActivityLog { TenantId = TenantId, UserId = UserId, ProjectId = id, EntityId = gate.Id, EntityType = "ProjectStageGate", Action = $"hat Stage Gate erstellt: {gate.Title}" });
+        await _db.SaveChangesAsync();
+
+        gate.Owner = owner;
+        return Ok(MapStageGate(gate));
+    }
+
+    [HttpPatch("{id}/stage-gates/{gateId}/status")]
+    public async Task<IActionResult> UpdateStageGateStatus(Guid id, Guid gateId, [FromBody] UpdateProjectStageGateStatusRequest req)
+    {
+        if (!RoleAccess.CanManagePmo(CurrentRole)) return Forbid();
+
+        var gate = await _db.ProjectStageGates
+            .Include(item => item.Project)
+            .FirstOrDefaultAsync(item => item.Id == gateId && item.ProjectId == id && item.Project!.TenantId == TenantId);
+
+        if (gate == null) return NotFound();
+        gate.Status = req.Status;
+        gate.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("{id}/stage-gates/{gateId}/checks")]
+    public async Task<ActionResult<ProjectStageGateCheckDto>> AddStageGateCheck(Guid id, Guid gateId, [FromBody] CreateProjectStageGateCheckRequest req)
+    {
+        if (!RoleAccess.CanManagePmo(CurrentRole)) return Forbid();
+
+        var gate = await _db.ProjectStageGates
+            .Include(item => item.Project)
+            .FirstOrDefaultAsync(item => item.Id == gateId && item.ProjectId == id && item.Project!.TenantId == TenantId);
+
+        if (gate == null) return NotFound();
+
+        var check = new ProjectStageGateCheck
+        {
+            StageGateId = gateId,
+            Title = req.Title,
+            RequirementType = req.RequirementType?.Trim() ?? "",
+            Status = "open",
+            IsMandatory = req.IsMandatory ?? true,
+            Notes = req.Notes ?? ""
+        };
+
+        _db.ProjectStageGateChecks.Add(check);
+        _db.ActivityLogs.Add(new ActivityLog { TenantId = TenantId, UserId = UserId, ProjectId = id, EntityId = check.Id, EntityType = "ProjectStageGateCheck", Action = $"hat Gate-Check erstellt: {check.Title}" });
+        await _db.SaveChangesAsync();
+
+        return Ok(MapStageGateCheck(check));
+    }
+
+    [HttpPatch("{id}/stage-gates/{gateId}/checks/{checkId}/status")]
+    public async Task<IActionResult> UpdateStageGateCheckStatus(Guid id, Guid gateId, Guid checkId, [FromBody] UpdateProjectStageGateCheckStatusRequest req)
+    {
+        if (!RoleAccess.CanManagePmo(CurrentRole)) return Forbid();
+
+        var check = await _db.ProjectStageGateChecks
+            .Include(item => item.StageGate)!.ThenInclude(gate => gate!.Project)
+            .FirstOrDefaultAsync(item => item.Id == checkId && item.StageGateId == gateId && item.StageGate!.ProjectId == id && item.StageGate.Project!.TenantId == TenantId);
+
+        if (check == null) return NotFound();
+        check.Status = req.Status;
+        check.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet("{id}/approvals")]
+    public async Task<ActionResult<List<ProjectApprovalDto>>> GetApprovals(Guid id)
+    {
+        var approvals = await _db.ProjectApprovals
+            .Where(approval => approval.ProjectId == id)
+            .Include(approval => approval.RequestedBy)
+            .Include(approval => approval.DecidedBy)
+            .OrderBy(approval => approval.DueDate)
+            .ToListAsync();
+
+        return Ok(approvals.Select(MapApproval));
+    }
+
+    [HttpPost("{id}/approvals")]
+    public async Task<ActionResult<ProjectApprovalDto>> AddApproval(Guid id, [FromBody] CreateProjectApprovalRequest req)
+    {
+        if (!RoleAccess.CanEditProject(CurrentRole)) return Forbid();
+
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+        if (project == null) return NotFound();
+
+        if (req.StageGateId.HasValue)
+        {
+            var gateExists = await _db.ProjectStageGates.AnyAsync(gate => gate.Id == req.StageGateId.Value && gate.ProjectId == id);
+            if (!gateExists) return BadRequest(new { message = "Stage Gate nicht gefunden." });
+        }
+
+        var approval = new ProjectApproval
+        {
+            ProjectId = id,
+            StageGateId = req.StageGateId,
+            RequestedById = UserId,
+            Title = req.Title,
+            ApprovalType = req.ApprovalType?.Trim() ?? "",
+            Status = "pending",
+            DueDate = req.DueDate,
+            DecisionNotes = req.DecisionNotes ?? ""
+        };
+
+        _db.ProjectApprovals.Add(approval);
+        _db.ActivityLogs.Add(new ActivityLog { TenantId = TenantId, UserId = UserId, ProjectId = id, EntityId = approval.Id, EntityType = "ProjectApproval", Action = $"hat Freigabe angefordert: {approval.Title}" });
+        await _db.SaveChangesAsync();
+
+        approval.RequestedBy = await _db.Users.FindAsync(UserId);
+        return Ok(MapApproval(approval));
+    }
+
+    [HttpPatch("{id}/approvals/{approvalId}/status")]
+    public async Task<IActionResult> UpdateApprovalStatus(Guid id, Guid approvalId, [FromBody] UpdateProjectApprovalStatusRequest req)
+    {
+        if (!RoleAccess.CanDecideApproval(CurrentRole)) return Forbid();
+
+        var approval = await _db.ProjectApprovals
+            .Include(item => item.Project)
+            .FirstOrDefaultAsync(item => item.Id == approvalId && item.ProjectId == id && item.Project!.TenantId == TenantId);
+
+        if (approval == null) return NotFound();
+        var oldStatus = approval.Status;
+        approval.Status = req.Status;
+        approval.DecisionNotes = req.DecisionNotes ?? approval.DecisionNotes;
+        approval.DecidedById = UserId;
+        approval.UpdatedAt = DateTime.UtcNow;
+
+        _db.AuditEntries.Add(new AuditEntry
+        {
+            TenantId = TenantId,
+            UserId = UserId,
+            ProjectId = id,
+            EntityId = approval.Id,
+            EntityType = "ProjectApproval",
+            ChangeType = "status_update",
+            Title = $"Freigabe aktualisiert: {approval.Title}",
+            FromValue = oldStatus,
+            ToValue = approval.Status,
+            Detail = string.IsNullOrWhiteSpace(approval.DecisionNotes) ? "Statusaenderung ohne Notiz." : approval.DecisionNotes
+        });
+
+        _db.ActivityLogs.Add(new ActivityLog { TenantId = TenantId, UserId = UserId, ProjectId = id, EntityId = approval.Id, EntityType = "ProjectApproval", Action = $"hat Freigabe aktualisiert: {approval.Title} ({approval.Status})" });
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -533,6 +886,126 @@ public class ProjectsController : ControllerBase
         return Ok(items.Select(MapKnowledgeItem));
     }
 
+    [HttpPost("{id}/knowledge-documents")]
+    public async Task<ActionResult<ProjectKnowledgeItemDto>> UploadKnowledgeDocument(Guid id, [FromBody] UploadKnowledgeDocumentRequest req)
+    {
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+        if (project == null) return NotFound();
+
+        var version = 1;
+        if (req.ParentKnowledgeItemId.HasValue)
+        {
+            var parent = await _db.ProjectKnowledgeItems
+                .FirstOrDefaultAsync(item => item.Id == req.ParentKnowledgeItemId.Value && item.ProjectId == id);
+
+            if (parent == null) return BadRequest(new { message = "Die referenzierte Knowledge-Version wurde nicht gefunden." });
+            version = Math.Max(parent.Version + 1, 2);
+        }
+
+        var item = new ProjectKnowledgeItem
+        {
+            ProjectId = id,
+            AuthorId = UserId,
+            Title = req.Title,
+            SourceType = string.IsNullOrWhiteSpace(req.SourceType) ? "document_upload" : req.SourceType.Trim(),
+            SourceLabel = req.SourceLabel?.Trim() ?? "",
+            Category = string.IsNullOrWhiteSpace(req.Category) ? "document" : req.Category.Trim(),
+            SourceFileName = req.SourceFileName?.Trim() ?? "",
+            Version = version,
+            ParentKnowledgeItemId = req.ParentKnowledgeItemId,
+            LinkedEntityType = req.LinkedEntityType?.Trim() ?? "",
+            LinkedEntityId = req.LinkedEntityId,
+            MeetingReference = req.MeetingReference?.Trim() ?? "",
+            Content = req.Content,
+            TagsCsv = string.Join("|", (req.Tags ?? []).Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v.Trim())),
+            Importance = Math.Clamp(req.Importance ?? 4, 1, 5)
+        };
+
+        _db.ProjectKnowledgeItems.Add(item);
+        _db.ActivityLogs.Add(new ActivityLog
+        {
+            TenantId = TenantId,
+            UserId = UserId,
+            ProjectId = id,
+            EntityId = item.Id,
+            EntityType = "KnowledgeDocument",
+            Action = $"hat Dokumentwissen importiert: {item.Title} v{item.Version}"
+        });
+
+        await _db.SaveChangesAsync();
+
+        item.Author = await _db.Users.FindAsync(UserId);
+        return Ok(MapKnowledgeItem(item));
+    }
+
+    [HttpGet("{id}/knowledge-hub")]
+    public async Task<ActionResult<ProjectKnowledgeHubDto>> GetKnowledgeHub(
+        Guid id,
+        [FromQuery] string? query,
+        [FromQuery] string? sourceType,
+        [FromQuery] int? minImportance,
+        [FromQuery] int? limit)
+    {
+        var project = await _db.Projects
+            .Include(p => p.KnowledgeItems).ThenInclude(item => item.Author)
+            .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+
+        if (project == null) return NotFound();
+
+        var tokens = TokenizeSearch(query);
+        var filteredItems = project.KnowledgeItems
+            .Where(item => string.IsNullOrWhiteSpace(sourceType) || item.SourceType.Equals(sourceType, StringComparison.OrdinalIgnoreCase))
+            .Where(item => !minImportance.HasValue || item.Importance >= minImportance.Value)
+            .Select(item => new { Item = item, Score = GetKnowledgeRelevance(item, tokens) })
+            .Where(x => tokens.Count == 0 || x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Item.Importance)
+            .ThenByDescending(x => x.Item.CreatedAt)
+            .Take(Math.Clamp(limit ?? 50, 1, 200))
+            .ToList();
+
+        var allItems = project.KnowledgeItems.ToList();
+        var sourceStats = allItems
+            .GroupBy(item => item.SourceType)
+            .Select(group => new KnowledgeSourceStatDto(
+                group.Key,
+                group.Count(),
+                group.Count(item => item.Importance >= 4)))
+            .OrderByDescending(group => group.Count)
+            .ThenBy(group => group.Key)
+            .ToList();
+
+        var topTags = allItems
+            .SelectMany(item => SplitList(item.TagsCsv))
+            .GroupBy(tag => tag)
+            .Select(group => new KnowledgeTagStatDto(group.Key, group.Count()))
+            .OrderByDescending(group => group.Count)
+            .ThenBy(group => group.Tag)
+            .Take(12)
+            .ToList();
+
+        var semanticMatches = project.KnowledgeItems
+            .Where(item => string.IsNullOrWhiteSpace(sourceType) || item.SourceType.Equals(sourceType, StringComparison.OrdinalIgnoreCase))
+            .Where(item => !minImportance.HasValue || item.Importance >= minImportance.Value)
+            .SelectMany(item => BuildKnowledgeChunks(item, tokens))
+            .Where(chunk => tokens.Count == 0 || chunk.SemanticScore > 0)
+            .OrderByDescending(chunk => chunk.SemanticScore)
+            .ThenBy(chunk => chunk.KnowledgeTitle)
+            .Take(12)
+            .ToList();
+
+        return Ok(new ProjectKnowledgeHubDto(
+            project.Id,
+            project.Name,
+            allItems.Count,
+            allItems.Count(item => item.Importance >= 4),
+            sourceStats,
+            topTags,
+            filteredItems.Select(x => MapKnowledgeHubItem(x.Item, x.Score, tokens)).ToList(),
+            semanticMatches
+        ));
+    }
+
     [HttpPost("{id}/knowledge-items")]
     public async Task<ActionResult<ProjectKnowledgeItemDto>> AddKnowledgeItem(Guid id, [FromBody] CreateProjectKnowledgeItemRequest req)
     {
@@ -546,6 +1019,13 @@ public class ProjectsController : ControllerBase
             Title = req.Title,
             SourceType = string.IsNullOrWhiteSpace(req.SourceType) ? "note" : req.SourceType.Trim(),
             SourceLabel = req.SourceLabel?.Trim() ?? "",
+            Category = string.IsNullOrWhiteSpace(req.Category) ? "general" : req.Category.Trim(),
+            SourceFileName = req.SourceFileName?.Trim() ?? "",
+            Version = req.ParentKnowledgeItemId.HasValue ? 2 : 1,
+            ParentKnowledgeItemId = req.ParentKnowledgeItemId,
+            LinkedEntityType = req.LinkedEntityType?.Trim() ?? "",
+            LinkedEntityId = req.LinkedEntityId,
+            MeetingReference = req.MeetingReference?.Trim() ?? "",
             Content = req.Content,
             TagsCsv = string.Join("|", (req.Tags ?? []).Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v.Trim())),
             Importance = Math.Clamp(req.Importance ?? 3, 1, 5)
@@ -573,6 +1053,8 @@ public class ProjectsController : ControllerBase
     [HttpPut("{id}/teams-link")]
     public async Task<ActionResult<ProjectTeamsLinkDto>> UpsertTeamsLink(Guid id, [FromBody] UpsertProjectTeamsLinkRequest req)
     {
+        if (!RoleAccess.CanConfigureIntegrations(CurrentRole)) return Forbid();
+
         var project = await _db.Projects
             .Include(p => p.TeamsLink)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
@@ -623,6 +1105,8 @@ public class ProjectsController : ControllerBase
     [HttpPut("{id}/jira-link")]
     public async Task<ActionResult<ProjectJiraLinkDto>> UpsertJiraLink(Guid id, [FromBody] UpsertProjectJiraLinkRequest req)
     {
+        if (!RoleAccess.CanConfigureIntegrations(CurrentRole)) return Forbid();
+
         var project = await _db.Projects
             .Include(p => p.JiraLink)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
@@ -709,6 +1193,8 @@ public class ProjectsController : ControllerBase
         p.Decisions.OrderBy(t => t.DueDate).Select(MapDecision).ToList(),
         p.Documents.OrderByDescending(t => t.CreatedAt).Select(MapDocument).ToList(),
         p.GovernanceChecks.OrderBy(t => t.DueDate).Select(MapGovernanceCheck).ToList(),
+        p.StageGates.OrderBy(t => t.GateOrder).ThenBy(t => t.DueDate).Select(MapStageGate).ToList(),
+        p.Approvals.OrderBy(t => t.DueDate).Select(MapApproval).ToList(),
         p.KnowledgeItems.OrderByDescending(t => t.Importance).ThenByDescending(t => t.CreatedAt).Select(MapKnowledgeItem).ToList(),
         p.TeamsLink == null ? null : MapTeamsLink(p.TeamsLink),
         p.JiraLink == null ? null : MapJiraLink(p.JiraLink)
@@ -731,11 +1217,169 @@ public class ProjectsController : ControllerBase
     private static ProjectDecisionDto MapDecision(ProjectDecision decision) => new(decision.Id, decision.Title, decision.Context, decision.Decision, decision.Owner?.DisplayName ?? "", decision.DueDate, decision.Status);
     private static ProjectDocumentDto MapDocument(ProjectDocument document) => new(document.Id, document.Title, document.Category, document.Url, document.Status, document.Owner?.DisplayName ?? "", document.CreatedAt);
     private static ProjectGovernanceCheckDto MapGovernanceCheck(ProjectGovernanceCheck check) => new(check.Id, check.Title, check.Area, check.Notes, check.Owner?.DisplayName ?? "", check.DueDate, check.Status);
-    private static ProjectKnowledgeItemDto MapKnowledgeItem(ProjectKnowledgeItem item) => new(item.Id, item.Title, item.SourceType, item.SourceLabel, item.Content, SplitList(item.TagsCsv), item.Author?.DisplayName ?? "", item.Importance, item.CreatedAt);
+    private static ProjectStageGateCheckDto MapStageGateCheck(ProjectStageGateCheck check) => new(check.Id, check.Title, check.RequirementType, check.Status, check.IsMandatory, check.Notes);
+    private static ProjectStageGateDto MapStageGate(ProjectStageGate gate) => new(gate.Id, gate.Title, gate.StageKey, gate.GateOrder, gate.Status, gate.DueDate, gate.Owner?.DisplayName ?? "", gate.Notes, gate.ApprovalSummary, gate.Checks.OrderBy(check => check.CreatedAt).Select(MapStageGateCheck).ToList());
+    private static ProjectApprovalDto MapApproval(ProjectApproval approval) => new(approval.Id, approval.StageGateId, approval.Title, approval.ApprovalType, approval.Status, approval.DueDate, approval.RequestedBy?.DisplayName ?? "", approval.DecidedBy?.DisplayName ?? "", approval.DecisionNotes);
+    private static ProjectKnowledgeItemDto MapKnowledgeItem(ProjectKnowledgeItem item) => new(item.Id, item.Title, item.SourceType, item.SourceLabel, item.Category, item.SourceFileName, item.Version, item.ParentKnowledgeItemId, item.LinkedEntityType, item.LinkedEntityId, item.MeetingReference, item.Content, SplitList(item.TagsCsv), item.Author?.DisplayName ?? "", item.Importance, item.CreatedAt);
     private static ProjectTeamsLinkDto MapTeamsLink(ProjectTeamsLink link) => new(link.ProjectId, link.TeamName, link.ChannelName, link.TeamId, link.ChannelId, link.TenantDomain, link.SyncStatus, link.LastSyncAt);
     private static ProjectJiraLinkDto MapJiraLink(ProjectJiraLink link) => new(link.ProjectId, link.BoardName, link.ProjectKey, link.BoardId, link.JqlFilter, link.SyncStatus, link.LastSyncAt);
 
     private static List<string> SplitList(string value) => value
         .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .ToList();
+
+    private static ProjectKnowledgeHubItemDto MapKnowledgeHubItem(ProjectKnowledgeItem item, int relevanceScore, List<string> tokens) => new(
+        item.Id,
+        item.Title,
+        item.SourceType,
+        item.SourceLabel,
+        item.Category,
+        item.SourceFileName,
+        item.Version,
+        item.ParentKnowledgeItemId,
+        item.LinkedEntityType,
+        item.LinkedEntityId,
+        item.MeetingReference,
+        item.Content,
+        BuildExcerpt(item.Content, tokens),
+        SplitList(item.TagsCsv),
+        item.Author?.DisplayName ?? "",
+        item.Importance,
+        item.CreatedAt,
+        relevanceScore
+    );
+
+    private static List<string> TokenizeSearch(string? query) => (query ?? "")
+        .ToLowerInvariant()
+        .Split(new[] { ' ', ',', '.', ';', ':', '\n', '\r', '\t', '-', '_', '/', '\\', '(', ')' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Where(token => token.Length >= 3)
+        .Distinct()
+        .ToList();
+
+    private static int GetKnowledgeRelevance(ProjectKnowledgeItem item, List<string> tokens)
+    {
+        if (tokens.Count == 0)
+        {
+            return item.Importance * 10;
+        }
+
+        var haystack = string.Join(" ", new[]
+        {
+            item.Title,
+            item.SourceType,
+            item.SourceLabel,
+            item.Content,
+            item.TagsCsv
+        }).ToLowerInvariant();
+
+        var score = item.Importance * 5;
+        foreach (var token in tokens)
+        {
+            if (item.Title.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 12;
+            if (item.SourceLabel.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 6;
+            if (item.SourceType.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 4;
+            if (item.TagsCsv.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 8;
+            if (haystack.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 3;
+        }
+
+        return score;
+    }
+
+    private static List<KnowledgeChunkDto> BuildKnowledgeChunks(ProjectKnowledgeItem item, List<string> tokens)
+    {
+        var chunks = SplitIntoChunks(item.Content);
+        return chunks.Select((chunk, index) => new KnowledgeChunkDto(
+            item.Id,
+            item.Title,
+            item.SourceType,
+            item.Category,
+            index + 1,
+            chunk,
+            GetSemanticChunkScore(item, chunk, tokens)
+        )).ToList();
+    }
+
+    private static int GetSemanticChunkScore(ProjectKnowledgeItem item, string chunk, List<string> tokens)
+    {
+        if (tokens.Count == 0)
+        {
+            return item.Importance * 8;
+        }
+
+        var score = item.Importance * 4;
+        foreach (var token in tokens)
+        {
+            if (chunk.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 8;
+            if (item.Title.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 10;
+            if (item.TagsCsv.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 6;
+            if (item.Category.Contains(token, StringComparison.OrdinalIgnoreCase)) score += 5;
+        }
+
+        if (item.LinkedEntityType.Length > 0) score += 2;
+        if (item.Version > 1) score += 1;
+        return score;
+    }
+
+    private static List<string> SplitIntoChunks(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return [];
+        }
+
+        var paragraphs = content
+            .Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(paragraph => paragraph.Replace('\r', ' ').Replace('\n', ' ').Trim())
+            .Where(paragraph => paragraph.Length > 0)
+            .ToList();
+
+        if (paragraphs.Count > 0)
+        {
+            return paragraphs
+                .SelectMany(paragraph => paragraph.Length <= 260
+                    ? new[] { paragraph }
+                    : paragraph.Chunk(220).Select(chunk => new string(chunk)).ToArray())
+                .ToList();
+        }
+
+        return content.Length <= 260
+            ? [content.Trim()]
+            : content.Chunk(220).Select(chunk => new string(chunk).Trim()).Where(chunk => chunk.Length > 0).ToList();
+    }
+
+    private static string BuildExcerpt(string content, List<string> tokens)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return "";
+        }
+
+        var normalized = content.Replace('\n', ' ').Replace('\r', ' ').Trim();
+        if (normalized.Length <= 180 || tokens.Count == 0)
+        {
+            return normalized.Length <= 180 ? normalized : normalized[..180] + "...";
+        }
+
+        var lower = normalized.ToLowerInvariant();
+        var matchIndex = tokens
+            .Select(token => lower.IndexOf(token, StringComparison.Ordinal))
+            .Where(index => index >= 0)
+            .DefaultIfEmpty(0)
+            .Min();
+
+        var start = Math.Max(0, matchIndex - 60);
+        var length = Math.Min(180, normalized.Length - start);
+        var excerpt = normalized.Substring(start, length).Trim();
+
+        if (start > 0) excerpt = "..." + excerpt;
+        if (start + length < normalized.Length) excerpt += "...";
+        return excerpt;
+    }
+
+    private static DateOnly GetWeekStart(DateOnly date)
+    {
+        var day = date.DayOfWeek;
+        var diff = day == DayOfWeek.Sunday ? 6 : (int)day - 1;
+        return date.AddDays(-diff);
+    }
 }

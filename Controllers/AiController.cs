@@ -67,6 +67,111 @@ public class AiController : ControllerBase
         return Ok(new AiChatResponse(reply));
     }
 
+    [HttpPost("project-question")]
+    public async Task<ActionResult<ProjectAiAnswerDto>> AskProjectQuestion([FromBody] ProjectAiQuestionRequest req)
+    {
+        var project = await _db.Projects
+            .Where(p => p.Id == req.ProjectId && p.TenantId == TenantId)
+            .Include(p => p.Tasks).ThenInclude(task => task.Assignee)
+            .Include(p => p.Risks).ThenInclude(risk => risk.Owner)
+            .Include(p => p.Decisions).ThenInclude(decision => decision.Owner)
+            .Include(p => p.Milestones).ThenInclude(milestone => milestone.Owner)
+            .Include(p => p.GovernanceChecks).ThenInclude(check => check.Owner)
+            .Include(p => p.KnowledgeItems).ThenInclude(item => item.Author)
+            .Include(p => p.Notes).ThenInclude(note => note.Author)
+            .FirstOrDefaultAsync();
+
+        if (project == null) return NotFound();
+
+        var tokens = Tokenize(req.Question);
+        var sources = new List<AiAnswerSourceDto>();
+
+        sources.AddRange(project.KnowledgeItems
+            .SelectMany(item => BuildKnowledgeAnswerSources(item, tokens))
+        );
+
+        sources.AddRange(project.Tasks
+            .Select(task => new AiAnswerSourceDto(
+                "task",
+                task.Title,
+                $"{task.Status} | {task.Assignee?.DisplayName ?? "Nicht zugewiesen"} | {BuildSnippet(task.Description)}",
+                ScoreTextMatch(tokens, task.Title, task.Description, task.Status, task.Priority)))
+        );
+
+        sources.AddRange(project.Risks
+            .Select(risk => new AiAnswerSourceDto(
+                "risk",
+                risk.Title,
+                $"Score {risk.Impact * risk.Probability} | {risk.Status} | {BuildSnippet(risk.Description)}",
+                ScoreTextMatch(tokens, risk.Title, risk.Description, risk.Mitigation, risk.Status) + risk.Impact * risk.Probability))
+        );
+
+        sources.AddRange(project.Decisions
+            .Select(decision => new AiAnswerSourceDto(
+                "decision",
+                decision.Title,
+                $"{decision.Status} | {BuildSnippet(decision.Context)} | Entscheidung: {BuildSnippet(decision.Decision)}",
+                ScoreTextMatch(tokens, decision.Title, decision.Context, decision.Decision, decision.Status)))
+        );
+
+        sources.AddRange(project.Milestones
+            .Select(milestone => new AiAnswerSourceDto(
+                "milestone",
+                milestone.Title,
+                $"{milestone.Status} | Faellig {milestone.DueDate:yyyy-MM-dd} | {BuildSnippet(milestone.Description)}",
+                ScoreTextMatch(tokens, milestone.Title, milestone.Description, milestone.Status)))
+        );
+
+        sources.AddRange(project.GovernanceChecks
+            .Select(check => new AiAnswerSourceDto(
+                "governance",
+                check.Title,
+                $"{check.Status} | {check.Area} | {BuildSnippet(check.Notes)}",
+                ScoreTextMatch(tokens, check.Title, check.Notes, check.Area, check.Status)))
+        );
+
+        sources.AddRange(project.Notes
+            .Select(note => new AiAnswerSourceDto(
+                "note",
+                note.Title,
+                BuildSnippet(note.Content),
+                ScoreTextMatch(tokens, note.Title, note.Content)))
+        );
+
+        var topSources = sources
+            .Where(source => source.RelevanceScore > 0 || tokens.Count == 0)
+            .OrderByDescending(source => source.RelevanceScore)
+            .ThenBy(source => source.Type)
+            .Take(6)
+            .ToList();
+
+        if (topSources.Count == 0)
+        {
+            topSources = sources
+                .OrderByDescending(source => source.RelevanceScore)
+                .Take(4)
+                .ToList();
+        }
+
+        var answer = BuildProjectAnswer(project, req.Question, topSources);
+        var suggestedActions = BuildSuggestedActions(project, topSources);
+        var confidence = topSources.Count >= 4
+            ? "high"
+            : topSources.Count >= 2
+                ? "medium"
+                : "low";
+
+        return Ok(new ProjectAiAnswerDto(
+            project.Id,
+            project.Name,
+            req.Question,
+            answer,
+            confidence,
+            topSources,
+            suggestedActions
+        ));
+    }
+
     [HttpGet("suggestions")]
     public async Task<ActionResult<List<AiSuggestionDto>>> GetSuggestions([FromQuery] Guid? projectId = null)
     {
@@ -239,6 +344,226 @@ public class AiController : ControllerBase
             $"Governance Checks offen: {openGovernance}, Entscheidungen offen: {openDecisions}, ueberfaellige Meilensteine: {overdueMilestones}.",
             highlights,
             nextActions
+        ));
+    }
+
+    [HttpGet("portfolio-briefing")]
+    public async Task<ActionResult<PortfolioBriefingDto>> GetPortfolioBriefing()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var projects = await _db.Projects
+            .Where(project => project.TenantId == TenantId)
+            .Include(project => project.Tasks)
+            .Include(project => project.Risks)
+            .Include(project => project.Decisions)
+            .Include(project => project.GovernanceChecks)
+            .OrderBy(project => project.Name)
+            .ToListAsync();
+
+        var projectBriefings = projects.Select(project =>
+        {
+            var openTasks = project.Tasks.Count(task => task.Status != "done");
+            var criticalRisks = project.Risks.Count(risk => risk.Status == "open" && risk.Impact * risk.Probability >= 12);
+            var openDecisions = project.Decisions.Count(decision => decision.Status == "open" || decision.Status == "review");
+            var openGovernanceChecks = project.GovernanceChecks.Count(check => check.Status != "done");
+
+            var headline = criticalRisks > 0
+                ? $"{criticalRisks} kritische Risiken brauchen Eskalation."
+                : openDecisions > 0
+                    ? $"{openDecisions} Entscheidungen sind noch offen."
+                    : $"{openTasks} offene Tasks, Governance {openGovernanceChecks}.";
+
+            return new PortfolioBriefingProjectDto(
+                project.Id,
+                project.Name,
+                project.Status,
+                project.ProgressPercent,
+                openTasks,
+                criticalRisks,
+                openDecisions,
+                openGovernanceChecks,
+                headline
+            );
+        }).ToList();
+
+        var highlights = new List<string>
+        {
+            $"{projects.Count} Projekte im Portfolio, davon {projects.Count(project => project.Status == "green")} gruene, {projects.Count(project => project.Status == "yellow")} gelbe und {projects.Count(project => project.Status == "red")} rote.",
+            $"{projectBriefings.Sum(project => project.CriticalRisks)} kritische Risiken und {projectBriefings.Sum(project => project.OpenDecisions)} offene Entscheidungen im Gesamtportfolio.",
+            $"{projectBriefings.Sum(project => project.OpenGovernanceChecks)} offene Governance-Checks ueber alle Projekte."
+        };
+
+        var escalations = projectBriefings
+            .Where(project => project.CriticalRisks > 0 || project.Status == "red" || project.OpenGovernanceChecks >= 3)
+            .OrderByDescending(project => project.CriticalRisks)
+            .ThenByDescending(project => project.OpenGovernanceChecks)
+            .Select(project => $"{project.ProjectName}: {project.Headline}")
+            .Take(5)
+            .ToList();
+
+        if (escalations.Count == 0)
+        {
+            escalations.Add("Aktuell keine akute Portfolio-Eskalation erkannt. Fokus auf Delivery-Stabilisierung und offene Entscheidungen.");
+        }
+
+        var summary = $"Portfolio-Briefing: {projects.Count} Projekte, {projectBriefings.Sum(project => project.OpenTasks)} offene Tasks, {projectBriefings.Sum(project => project.CriticalRisks)} kritische Risiken und {projectBriefings.Sum(project => project.OpenGovernanceChecks)} offene Governance-Checks.";
+
+        return Ok(new PortfolioBriefingDto(summary, highlights, escalations, projectBriefings));
+    }
+
+    [HttpGet("risk-signals")]
+    public async Task<ActionResult<List<RiskSignalDto>>> GetRiskSignals([FromQuery] Guid? projectId = null)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var projects = await _db.Projects
+            .Where(project => project.TenantId == TenantId && (!projectId.HasValue || project.Id == projectId.Value))
+            .Include(project => project.Tasks)
+            .Include(project => project.Risks)
+            .Include(project => project.Milestones)
+            .Include(project => project.KnowledgeItems)
+            .ToListAsync();
+
+        var signals = new List<RiskSignalDto>();
+
+        foreach (var project in projects)
+        {
+            var overdueTasks = project.Tasks.Where(task => task.DueDate.HasValue && task.DueDate.Value < today && task.Status != "done").ToList();
+            if (overdueTasks.Count >= 2)
+            {
+                signals.Add(new RiskSignalDto(
+                    project.Id,
+                    project.Name,
+                    overdueTasks.Count >= 4 ? "high" : "medium",
+                    "Task-Verzug als Fruehwarnsignal",
+                    $"{overdueTasks.Count} Tasks sind ueberfaellig und gefaehrden den Delivery-Plan.",
+                    overdueTasks.Select(task => task.Title).Take(4).ToList(),
+                    overdueTasks.Count * 4
+                ));
+            }
+
+            var criticalRisks = project.Risks.Where(risk => risk.Status == "open" && risk.Impact * risk.Probability >= 12).ToList();
+            if (criticalRisks.Count > 0)
+            {
+                signals.Add(new RiskSignalDto(
+                    project.Id,
+                    project.Name,
+                    "high",
+                    "Bereits erkannte kritische Risiken",
+                    $"{criticalRisks.Count} offene Risiken liegen im kritischen Bereich.",
+                    criticalRisks.Select(risk => risk.Title).Take(4).ToList(),
+                    criticalRisks.Sum(risk => risk.Impact * risk.Probability)
+                ));
+            }
+
+            var overdueMilestones = project.Milestones.Where(milestone => milestone.DueDate < today && milestone.Status != "done").ToList();
+            if (overdueMilestones.Count > 0)
+            {
+                signals.Add(new RiskSignalDto(
+                    project.Id,
+                    project.Name,
+                    overdueMilestones.Count >= 2 ? "high" : "medium",
+                    "Meilenstein-Risiko",
+                    $"{overdueMilestones.Count} Meilensteine sind ueberfaellig und deuten auf Planabweichungen hin.",
+                    overdueMilestones.Select(milestone => milestone.Title).Take(4).ToList(),
+                    overdueMilestones.Count * 5
+                ));
+            }
+
+            var riskyKnowledge = project.KnowledgeItems
+                .Where(item =>
+                    item.Content.Contains("risiko", StringComparison.OrdinalIgnoreCase)
+                    || item.Content.Contains("blocker", StringComparison.OrdinalIgnoreCase)
+                    || item.Content.Contains("verzug", StringComparison.OrdinalIgnoreCase)
+                    || item.Content.Contains("fehlend", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(item => item.Importance)
+                .Take(3)
+                .ToList();
+
+            if (riskyKnowledge.Count > 0)
+            {
+                signals.Add(new RiskSignalDto(
+                    project.Id,
+                    project.Name,
+                    riskyKnowledge.Any(item => item.Importance >= 5) ? "high" : "medium",
+                    "Wissensbasierte Risiko-Signale",
+                    "Knowledge-Eintraege enthalten Hinweise auf Blocker, Verzug oder fehlende Voraussetzungen.",
+                    riskyKnowledge.Select(item => item.Title).ToList(),
+                    riskyKnowledge.Sum(item => item.Importance * 2)
+                ));
+            }
+        }
+
+        return Ok(signals
+            .OrderByDescending(signal => signal.Score)
+            .ThenBy(signal => signal.ProjectName)
+            .ToList());
+    }
+
+    [HttpGet("learning-summary")]
+    public async Task<ActionResult<AiLearningSummaryDto>> GetLearningSummary()
+    {
+        var feedback = await _db.AiSuggestionFeedback
+            .Where(item => item.Project!.TenantId == TenantId)
+            .Include(item => item.Project)
+            .ToListAsync();
+
+        var byType = feedback
+            .GroupBy(item => item.SuggestionType)
+            .Select(group => new AiLearningByTypeDto(
+                group.Key,
+                group.Count(item => item.Status == "accepted"),
+                group.Count(item => item.Status == "rejected"),
+                group.Count(item => item.Status == "edited")))
+            .OrderByDescending(group => group.Accepted)
+            .ThenBy(group => group.SuggestionType)
+            .ToList();
+
+        var byProject = feedback
+            .GroupBy(item => new { item.ProjectId, ProjectName = item.Project?.Name ?? "" })
+            .Select(group => new AiLearningByProjectDto(
+                group.Key.ProjectId,
+                group.Key.ProjectName,
+                group.Count(item => item.Status == "accepted"),
+                group.Count(item => item.Status == "rejected"),
+                group.Count(item => item.Status == "edited")))
+            .OrderByDescending(group => group.Accepted + group.Edited)
+            .ThenBy(group => group.ProjectName)
+            .ToList();
+
+        var accepted = feedback.Count(item => item.Status == "accepted");
+        var rejected = feedback.Count(item => item.Status == "rejected");
+        var edited = feedback.Count(item => item.Status == "edited");
+
+        var insights = new List<string>();
+        var strongestType = byType.OrderByDescending(item => item.Accepted).FirstOrDefault();
+        if (strongestType != null)
+        {
+            insights.Add($"Am haeufigsten werden derzeit Vorschlaege vom Typ '{strongestType.SuggestionType}' angenommen.");
+        }
+
+        if (rejected > accepted)
+        {
+            insights.Add("Mehr Vorschlaege werden verworfen als angenommen. Empfehlung: Schwellwerte und Priorisierung schaerfen.");
+        }
+        else
+        {
+            insights.Add("Die Akzeptanz ist aktuell hoeher als die Ablehnung. Das ist ein positives Signal fuer die Suggestion-Qualitaet.");
+        }
+
+        var strongestProject = byProject.FirstOrDefault();
+        if (strongestProject != null)
+        {
+            insights.Add($"{strongestProject.ProjectName} liefert aktuell die meisten Lernsignale fuer die KI-Auswertung.");
+        }
+
+        return Ok(new AiLearningSummaryDto(
+            feedback.Count,
+            accepted,
+            rejected,
+            edited,
+            byType,
+            byProject,
+            insights
         ));
     }
 
@@ -428,4 +753,139 @@ public class AiController : ControllerBase
 
     private static AiSuggestionFeedbackDto MapFeedback(AiSuggestionFeedback item)
         => new(item.Id, item.ProjectId, item.SuggestionType, item.SuggestionTitle, item.Status, item.Notes, item.User?.DisplayName ?? "", item.CreatedAt);
+
+    private static List<string> Tokenize(string? question) => (question ?? "")
+        .ToLowerInvariant()
+        .Split(new[] { ' ', ',', '.', ';', ':', '\n', '\r', '\t', '-', '_', '/', '\\', '(', ')' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Where(token => token.Length >= 3)
+        .Distinct()
+        .ToList();
+
+    private static int ScoreTextMatch(List<string> tokens, params string[] parts)
+    {
+        if (tokens.Count == 0)
+        {
+            return 1;
+        }
+
+        var score = 0;
+        foreach (var part in parts.Where(part => !string.IsNullOrWhiteSpace(part)))
+        {
+            foreach (var token in tokens)
+            {
+                if (part.Contains(token, StringComparison.OrdinalIgnoreCase))
+                {
+                    score += 5;
+                }
+            }
+        }
+
+        return score;
+    }
+
+    private static List<AiAnswerSourceDto> BuildKnowledgeAnswerSources(ProjectKnowledgeItem item, List<string> tokens)
+    {
+        var chunks = SplitIntoChunks(item.Content);
+        return chunks.Select((chunk, index) => new AiAnswerSourceDto(
+            "knowledge",
+            index == 0 ? item.Title : $"{item.Title} (Abschnitt {index + 1})",
+            $"{item.SourceType}/{item.Category}: {BuildSnippet(chunk)}",
+            ScoreTextMatch(tokens, item.Title, chunk, item.TagsCsv, item.SourceType, item.SourceLabel, item.Category) + item.Importance * 5 + (item.Version > 1 ? 1 : 0)
+        )).ToList();
+    }
+
+    private static string BuildSnippet(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        var normalized = text.Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return normalized.Length <= 120 ? normalized : normalized[..120] + "...";
+    }
+
+    private static List<string> SplitIntoChunks(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return [];
+        }
+
+        var normalized = content.Replace("\r\n", "\n");
+        var paragraphs = normalized
+            .Split(new[] { "\n\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(paragraph => paragraph.Replace('\n', ' ').Trim())
+            .Where(paragraph => paragraph.Length > 0)
+            .ToList();
+
+        if (paragraphs.Count > 0)
+        {
+            return paragraphs
+                .SelectMany(paragraph => paragraph.Length <= 220
+                    ? new[] { paragraph }
+                    : paragraph.Chunk(200).Select(chunk => new string(chunk).Trim()).Where(chunk => chunk.Length > 0))
+                .ToList();
+        }
+
+        return normalized.Length <= 220
+            ? [normalized.Trim()]
+            : normalized.Chunk(200).Select(chunk => new string(chunk).Trim()).Where(chunk => chunk.Length > 0).ToList();
+    }
+
+    private static string BuildProjectAnswer(Project project, string question, List<AiAnswerSourceDto> sources)
+    {
+        var lowered = question.ToLowerInvariant();
+        if (lowered.Contains("risik"))
+        {
+            var risks = sources.Where(source => source.Type == "risk").Take(3).ToList();
+            return risks.Count == 0
+                ? $"Fuer {project.Name} gibt es aus dem aktuellen Wissensstand keine stark passenden Risikoquellen."
+                : $"Fuer {project.Name} stehen aktuell vor allem diese Risiken im Vordergrund: {string.Join(" | ", risks.Select(risk => $"{risk.Title}: {risk.Detail}"))}";
+        }
+
+        if (lowered.Contains("wissen") || lowered.Contains("kontext") || lowered.Contains("stand"))
+        {
+            return $"Der staerkste Projektkontext fuer {project.Name} ergibt sich aus: {string.Join(" | ", sources.Take(4).Select(source => $"{source.Type}: {source.Title}"))}.";
+        }
+
+        if (lowered.Contains("naechst") || lowered.Contains("aktion") || lowered.Contains("tun"))
+        {
+            var actions = BuildSuggestedActions(project, sources);
+            return $"Die naechsten sinnvollen Schritte fuer {project.Name} sind: {string.Join(" | ", actions.Take(3))}";
+        }
+
+        return $"Fuer {project.Name} sind die relevantesten Quellen zu Ihrer Frage: {string.Join(" | ", sources.Take(4).Select(source => $"{source.Type}: {source.Title}"))}. Daraus ergibt sich ein aktueller Fokus auf Fortschritt, Risiken und offene Entscheidungen.";
+    }
+
+    private static List<string> BuildSuggestedActions(Project project, List<AiAnswerSourceDto> sources)
+    {
+        var actions = new List<string>();
+        if (sources.Any(source => source.Type == "risk"))
+        {
+            actions.Add("Kritische Risiken mit Owner und Massnahme im naechsten Statusmeeting durchgehen.");
+        }
+
+        if (sources.Any(source => source.Type == "decision"))
+        {
+            actions.Add("Offene Entscheidungen in das naechste Steering oder Projektmeeting aufnehmen.");
+        }
+
+        if (sources.Any(source => source.Type == "milestone"))
+        {
+            actions.Add("Meilensteinplanung mit realistischem Termin und Verantwortlichen absichern.");
+        }
+
+        if (sources.Any(source => source.Type == "knowledge"))
+        {
+            actions.Add("Wichtige Knowledge-Eintraege in konkrete Tasks, Risiken oder Governance-Checks ueberfuehren.");
+        }
+
+        if (actions.Count == 0)
+        {
+            actions.Add($"Projekt {project.Name} weiter mit Fokus auf {project.NextMilestone} steuern.");
+        }
+
+        return actions.Distinct().ToList();
+    }
 }

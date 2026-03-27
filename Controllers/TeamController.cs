@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PmTool.Api.Models;
+using PmTool.Api.Security;
 using System.Security.Claims;
 
 namespace PmTool.Api.Controllers;
@@ -12,6 +13,7 @@ public class TeamController : ControllerBase
     private readonly AppDbContext _db;
     private Guid TenantId => Guid.Parse(User.FindFirstValue("tenantId")!);
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private string CurrentRole => User.FindFirstValue(ClaimTypes.Role) ?? "";
 
     public TeamController(AppDbContext db) => _db = db;
 
@@ -41,9 +43,13 @@ public class TeamController : ControllerBase
     [HttpPost("invite")]
     public async Task<ActionResult<TeamMemberDto>> Invite([FromBody] InviteTeamMemberRequest req)
     {
+        if (!RoleAccess.CanManageTeam(CurrentRole)) return Forbid();
+
         var email = req.Email.Trim().ToLowerInvariant();
         if (await _db.Users.AnyAsync(u => u.TenantId == TenantId && u.Email == email))
             return Conflict(new { message = "E-Mail ist bereits vorhanden." });
+        if (!RoleCatalog.IsValidRole(req.Role))
+            return BadRequest(new { message = "Rolle ist nicht gueltig." });
 
         var user = new User
         {
@@ -63,6 +69,18 @@ public class TeamController : ControllerBase
             EntityType = "User",
             Action = $"hat Teammitglied {user.DisplayName} eingeladen"
         });
+        _db.AuditEntries.Add(new AuditEntry
+        {
+            TenantId = TenantId,
+            UserId = UserId,
+            EntityId = user.Id,
+            EntityType = "UserRole",
+            ChangeType = "create",
+            Title = $"Rolle fuer {user.DisplayName} gesetzt",
+            FromValue = "",
+            ToValue = user.Role,
+            Detail = $"Neues Teammitglied wurde mit Rolle '{user.Role}' angelegt."
+        });
         await _db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetAll), new TeamMemberDto(user.Id, user.DisplayName, user.Email, user.Role, 0, 40));
@@ -71,12 +89,36 @@ public class TeamController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTeamMemberRequest req)
     {
+        if (!RoleAccess.CanManageTeam(CurrentRole)) return Forbid();
+
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id && u.TenantId == TenantId);
         if (user == null) return NotFound();
 
         if (!string.IsNullOrWhiteSpace(req.Name)) user.DisplayName = req.Name.Trim();
-        if (!string.IsNullOrWhiteSpace(req.Role)) user.Role = req.Role.Trim();
+        var oldRole = user.Role;
+        if (!string.IsNullOrWhiteSpace(req.Role))
+        {
+            if (!RoleCatalog.IsValidRole(req.Role))
+                return BadRequest(new { message = "Rolle ist nicht gueltig." });
+            user.Role = req.Role.Trim();
+        }
         user.UpdatedAt = DateTime.UtcNow;
+
+        if (!string.Equals(oldRole, user.Role, StringComparison.OrdinalIgnoreCase))
+        {
+            _db.AuditEntries.Add(new AuditEntry
+            {
+                TenantId = TenantId,
+                UserId = UserId,
+                EntityId = user.Id,
+                EntityType = "UserRole",
+                ChangeType = "update",
+                Title = $"Rolle fuer {user.DisplayName} geaendert",
+                FromValue = oldRole,
+                ToValue = user.Role,
+                Detail = $"Rollenwechsel von '{oldRole}' zu '{user.Role}'."
+            });
+        }
 
         await _db.SaveChangesAsync();
         return NoContent();
@@ -85,6 +127,8 @@ public class TeamController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Remove(Guid id)
     {
+        if (!RoleAccess.CanManageTeam(CurrentRole)) return Forbid();
+
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id && u.TenantId == TenantId);
         if (user == null) return NotFound();
         if (user.Id == UserId) return BadRequest(new { message = "Aktueller Benutzer kann nicht entfernt werden." });

@@ -2,6 +2,8 @@ namespace PmTool.Api.Models;
 
 public record LoginRequest(string Email, string Password);
 public record LoginResponse(string Token, string UserName, string Email, string Role, Guid UserId, Guid TenantId);
+public record EntraExchangeRequest(string IdToken);
+public record AccessMatrixDto(string CurrentRole, List<string> AvailableRoles, Dictionary<string, bool> Permissions);
 
 public record ProjectDto(
     Guid Id,
@@ -38,7 +40,17 @@ public record ProjectMilestoneDto(Guid Id, string Title, string Description, str
 public record ProjectDecisionDto(Guid Id, string Title, string Context, string Decision, string OwnerName, DateOnly DueDate, string Status);
 public record ProjectDocumentDto(Guid Id, string Title, string Category, string Url, string Status, string OwnerName, DateTime CreatedAt);
 public record ProjectGovernanceCheckDto(Guid Id, string Title, string Area, string Notes, string OwnerName, DateOnly DueDate, string Status);
-public record ProjectKnowledgeItemDto(Guid Id, string Title, string SourceType, string SourceLabel, string Content, List<string> Tags, string AuthorName, int Importance, DateTime CreatedAt);
+public record ProjectStageGateCheckDto(Guid Id, string Title, string RequirementType, string Status, bool IsMandatory, string Notes);
+public record ProjectStageGateDto(Guid Id, string Title, string StageKey, int GateOrder, string Status, DateOnly DueDate, string OwnerName, string Notes, string ApprovalSummary, List<ProjectStageGateCheckDto> Checks);
+public record ProjectApprovalDto(Guid Id, Guid? StageGateId, string Title, string ApprovalType, string Status, DateOnly DueDate, string RequestedByName, string DecidedByName, string DecisionNotes);
+public record ProjectForecastDto(Guid ProjectId, string ProjectName, decimal BudgetAtCompletion, decimal ActualCost, decimal EarnedValue, decimal PlannedValue, decimal CostVariance, decimal ScheduleVariance, decimal EstimateAtCompletion, decimal EstimateToComplete, decimal CostPerformanceIndex, decimal SchedulePerformanceIndex, int TotalEstimatedHours, int LoggedHours, int RemainingHours, string ForecastComment);
+public record ProjectForecastSnapshotDto(Guid Id, DateOnly SnapshotDate, decimal BudgetAtCompletion, decimal ActualCost, decimal EarnedValue, decimal PlannedValue, decimal EstimateAtCompletion, decimal EstimateToComplete, decimal CostPerformanceIndex, decimal SchedulePerformanceIndex, int RemainingHours);
+public record ProjectKnowledgeItemDto(Guid Id, string Title, string SourceType, string SourceLabel, string Category, string SourceFileName, int Version, Guid? ParentKnowledgeItemId, string LinkedEntityType, Guid? LinkedEntityId, string MeetingReference, string Content, List<string> Tags, string AuthorName, int Importance, DateTime CreatedAt);
+public record KnowledgeSourceStatDto(string Key, int Count, int HighImportanceCount);
+public record KnowledgeTagStatDto(string Tag, int Count);
+public record KnowledgeChunkDto(Guid KnowledgeItemId, string KnowledgeTitle, string SourceType, string Category, int ChunkIndex, string Text, int SemanticScore);
+public record ProjectKnowledgeHubItemDto(Guid Id, string Title, string SourceType, string SourceLabel, string Category, string SourceFileName, int Version, Guid? ParentKnowledgeItemId, string LinkedEntityType, Guid? LinkedEntityId, string MeetingReference, string Content, string Excerpt, List<string> Tags, string AuthorName, int Importance, DateTime CreatedAt, int RelevanceScore);
+public record ProjectKnowledgeHubDto(Guid ProjectId, string ProjectName, int TotalItems, int HighImportanceItems, List<KnowledgeSourceStatDto> Sources, List<KnowledgeTagStatDto> TopTags, List<ProjectKnowledgeHubItemDto> Items, List<KnowledgeChunkDto> SemanticMatches);
 public record ProjectTeamsLinkDto(Guid ProjectId, string TeamName, string ChannelName, string TeamId, string ChannelId, string TenantDomain, string SyncStatus, DateTime? LastSyncAt);
 public record ProjectJiraLinkDto(Guid ProjectId, string BoardName, string ProjectKey, string BoardId, string JqlFilter, string SyncStatus, DateTime? LastSyncAt);
 
@@ -75,6 +87,8 @@ public record ProjectDetailDto(
     List<ProjectDecisionDto> Decisions,
     List<ProjectDocumentDto> Documents,
     List<ProjectGovernanceCheckDto> GovernanceChecks,
+    List<ProjectStageGateDto> StageGates,
+    List<ProjectApprovalDto> Approvals,
     List<ProjectKnowledgeItemDto> KnowledgeItems,
     ProjectTeamsLinkDto? TeamsLink,
     ProjectJiraLinkDto? JiraLink
@@ -82,7 +96,7 @@ public record ProjectDetailDto(
 
 public record CreateProjectRequest(string Name, string Description, string Customer, decimal BudgetTotal, DateOnly StartDate, DateOnly EndDate);
 public record UpdateProjectRequest(string? Name, string? Description, string? Customer, string? Category, string? Stage, string? DeliveryModel, string? Sponsor, string? ExecutiveSummary, string? HealthSummary, string? Objective, string? Scope, string? SuccessMetric, string? Communication, string? NextMilestone, List<string>? Stakeholders, List<string>? Technologies, string? Status, int? ProgressPercent, decimal? BudgetTotal, decimal? BudgetSpent, DateOnly? StartDate, DateOnly? EndDate);
-public record PortfolioDto(List<ProjectDto> Projects, int TotalProjects, int GreenCount, int YellowCount, int RedCount, decimal TotalBudget, decimal SpentBudget, int TotalTasks, int OverdueTasks, int OpenDecisions, int OverdueMilestones, int OpenGovernanceItems);
+public record PortfolioDto(List<ProjectDto> Projects, int TotalProjects, int GreenCount, int YellowCount, int RedCount, decimal TotalBudget, decimal SpentBudget, decimal ForecastBudget, decimal ForecastVariance, int TotalTasks, int OverdueTasks, int OpenDecisions, int OverdueMilestones, int OpenGovernanceItems, int OverloadedMembers, int NearCapacityMembers);
 
 public record AssignProjectTeamMemberRequest(Guid UserId, string ProjectRole, string Responsibility, int AllocatedHours);
 public record UpdateProjectTeamMemberRequest(string? ProjectRole, string? Responsibility, int? AllocatedHours);
@@ -97,6 +111,7 @@ public record RiskDto(Guid Id, Guid ProjectId, string Title, string Description,
 public record CreateRiskRequest(string Title, string Description, int Impact, int Probability, string Mitigation, Guid OwnerId);
 
 public record ActivityDto(Guid Id, string UserName, string Action, string EntityType, DateTime CreatedAt);
+public record AuditEntryDto(Guid Id, Guid? ProjectId, string UserName, string UserRole, string EntityType, string ChangeType, string Title, string FromValue, string ToValue, string Detail, DateTime CreatedAt);
 public record TeamMemberDto(Guid Id, string Name, string Email, string Role, int AllocatedHours, int TotalCapacityHours);
 public record InviteTeamMemberRequest(string Name, string Email, string Role);
 public record UpdateTeamMemberRequest(string? Name, string? Role);
@@ -111,16 +126,34 @@ public record UpdateProjectDecisionStatusRequest(string Status);
 public record CreateProjectDocumentRequest(string Title, string Category, string Url, string Status, Guid? OwnerId);
 public record CreateProjectGovernanceCheckRequest(string Title, string Area, string Notes, Guid? OwnerId, DateOnly DueDate);
 public record UpdateProjectGovernanceCheckStatusRequest(string Status);
-public record CreateProjectKnowledgeItemRequest(string Title, string SourceType, string SourceLabel, string Content, List<string>? Tags, int? Importance);
+public record CreateProjectStageGateRequest(string Title, string StageKey, int? GateOrder, Guid? OwnerId, DateOnly DueDate, string Notes, string ApprovalSummary);
+public record UpdateProjectStageGateStatusRequest(string Status);
+public record CreateProjectStageGateCheckRequest(string Title, string RequirementType, bool? IsMandatory, string Notes);
+public record UpdateProjectStageGateCheckStatusRequest(string Status);
+public record CreateProjectApprovalRequest(Guid? StageGateId, string Title, string ApprovalType, DateOnly DueDate, string DecisionNotes);
+public record UpdateProjectApprovalStatusRequest(string Status, string DecisionNotes);
+public record CreateProjectKnowledgeItemRequest(string Title, string SourceType, string SourceLabel, string Category, string SourceFileName, Guid? ParentKnowledgeItemId, string LinkedEntityType, Guid? LinkedEntityId, string MeetingReference, string Content, List<string>? Tags, int? Importance);
+public record UploadKnowledgeDocumentRequest(string Title, string SourceType, string SourceLabel, string Category, string SourceFileName, string Content, Guid? ParentKnowledgeItemId, string LinkedEntityType, Guid? LinkedEntityId, string MeetingReference, List<string>? Tags, int? Importance);
 public record UpsertProjectTeamsLinkRequest(string TeamName, string ChannelName, string TeamId, string ChannelId, string TenantDomain, string SyncStatus);
 public record UpsertProjectJiraLinkRequest(string BoardName, string ProjectKey, string BoardId, string JqlFilter, string SyncStatus);
-public record GovernanceOverviewProjectDto(Guid ProjectId, string ProjectName, string Category, string Stage, string Status, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones);
-public record GovernanceOverviewDto(List<GovernanceOverviewProjectDto> Projects, int TotalProjects, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones);
+public record GovernanceOverviewProjectDto(Guid ProjectId, string ProjectName, string Category, string Stage, string Status, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones, int OpenStageGates, int BlockedStageGates, int PendingApprovals);
+public record GovernanceOverviewDto(List<GovernanceOverviewProjectDto> Projects, int TotalProjects, int OpenGovernanceChecks, int OpenDecisions, int OverdueMilestones, int OpenStageGates, int BlockedStageGates, int PendingApprovals);
+public record PortfolioEscalationItemDto(Guid ProjectId, string ProjectName, string Severity, string Category, string Title, string Detail, string Metric, string RecommendedAction);
+public record PortfolioEscalationOverviewDto(int TotalItems, int CriticalItems, int WarningItems, int BudgetWarnings, int CapacityWarnings, List<PortfolioEscalationItemDto> Items);
 
 public record AiChatRequest(string Message, Guid? ProjectId);
 public record AiChatResponse(string Reply);
+public record ProjectAiQuestionRequest(Guid ProjectId, string Question);
+public record AiAnswerSourceDto(string Type, string Title, string Detail, int RelevanceScore);
+public record ProjectAiAnswerDto(Guid ProjectId, string ProjectName, string Question, string Answer, string Confidence, List<AiAnswerSourceDto> Sources, List<string> SuggestedActions);
 public record AiSuggestionDto(Guid ProjectId, string ProjectName, string Type, string Title, string Reason, string Recommendation, string Priority, List<string> Sources, string FeedbackStatus);
 public record AiSuggestionFeedbackDto(Guid Id, Guid ProjectId, string SuggestionType, string SuggestionTitle, string Status, string Notes, string UserName, DateTime CreatedAt);
+public record PortfolioBriefingProjectDto(Guid ProjectId, string ProjectName, string Status, int ProgressPercent, int OpenTasks, int CriticalRisks, int OpenDecisions, int OpenGovernanceChecks, string Headline);
+public record PortfolioBriefingDto(string Summary, List<string> Highlights, List<string> Escalations, List<PortfolioBriefingProjectDto> Projects);
+public record RiskSignalDto(Guid ProjectId, string ProjectName, string Severity, string Title, string Detail, List<string> Sources, int Score);
+public record AiLearningByTypeDto(string SuggestionType, int Accepted, int Rejected, int Edited);
+public record AiLearningByProjectDto(Guid ProjectId, string ProjectName, int Accepted, int Rejected, int Edited);
+public record AiLearningSummaryDto(int TotalFeedback, int Accepted, int Rejected, int Edited, List<AiLearningByTypeDto> ByType, List<AiLearningByProjectDto> ByProject, List<string> Insights);
 public record CreateAiSuggestionFeedbackRequest(Guid ProjectId, string Type, string Title, string Status, string Notes);
 public record ApplyAiSuggestionRequest(Guid ProjectId, string Type, string Title, string Recommendation, string TargetType, string? Notes);
 public record ApplyAiSuggestionResponse(Guid ProjectId, string TargetType, Guid EntityId, string EntityTitle, string FeedbackStatus);

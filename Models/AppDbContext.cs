@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<Risk> Risks => Set<Risk>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<ResourceAllocation> ResourceAllocations => Set<ResourceAllocation>();
     public DbSet<ProjectNote> ProjectNotes => Set<ProjectNote>();
     public DbSet<ProjectLeadTask> ProjectLeadTasks => Set<ProjectLeadTask>();
@@ -20,6 +21,10 @@ public class AppDbContext : DbContext
     public DbSet<ProjectDecision> ProjectDecisions => Set<ProjectDecision>();
     public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
     public DbSet<ProjectGovernanceCheck> ProjectGovernanceChecks => Set<ProjectGovernanceCheck>();
+    public DbSet<ProjectStageGate> ProjectStageGates => Set<ProjectStageGate>();
+    public DbSet<ProjectStageGateCheck> ProjectStageGateChecks => Set<ProjectStageGateCheck>();
+    public DbSet<ProjectApproval> ProjectApprovals => Set<ProjectApproval>();
+    public DbSet<ProjectForecastSnapshot> ProjectForecastSnapshots => Set<ProjectForecastSnapshot>();
     public DbSet<ProjectKnowledgeItem> ProjectKnowledgeItems => Set<ProjectKnowledgeItem>();
     public DbSet<AiSuggestionFeedback> AiSuggestionFeedback => Set<AiSuggestionFeedback>();
     public DbSet<ProjectTeamsLink> ProjectTeamsLinks => Set<ProjectTeamsLink>();
@@ -33,6 +38,9 @@ public class AppDbContext : DbContext
         mb.Entity<ProjectTask>().HasOne(t => t.Assignee).WithMany().HasForeignKey(t => t.AssigneeId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<Risk>().HasOne(r => r.Owner).WithMany().HasForeignKey(r => r.OwnerId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<ActivityLog>().HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<AuditEntry>().HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<AuditEntry>().HasOne(a => a.Project).WithMany().HasForeignKey(a => a.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<AuditEntry>().HasOne(a => a.Tenant).WithMany(t => t.AuditEntries).HasForeignKey(a => a.TenantId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<TaskComment>().HasOne(c => c.Author).WithMany().HasForeignKey(c => c.AuthorId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<ResourceAllocation>().HasOne(r => r.User).WithMany().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<ResourceAllocation>().HasOne(r => r.Project).WithMany(p => p.TeamAssignments).HasForeignKey(r => r.ProjectId).OnDelete(DeleteBehavior.Cascade);
@@ -48,6 +56,14 @@ public class AppDbContext : DbContext
         mb.Entity<ProjectDocument>().HasOne(t => t.Owner).WithMany().HasForeignKey(t => t.OwnerId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<ProjectGovernanceCheck>().HasOne(t => t.Project).WithMany(p => p.GovernanceChecks).HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<ProjectGovernanceCheck>().HasOne(t => t.Owner).WithMany().HasForeignKey(t => t.OwnerId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<ProjectStageGate>().HasOne(t => t.Project).WithMany(p => p.StageGates).HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<ProjectStageGate>().HasOne(t => t.Owner).WithMany().HasForeignKey(t => t.OwnerId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<ProjectStageGateCheck>().HasOne(t => t.StageGate).WithMany(g => g.Checks).HasForeignKey(t => t.StageGateId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<ProjectApproval>().HasOne(t => t.Project).WithMany(p => p.Approvals).HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<ProjectApproval>().HasOne(t => t.StageGate).WithMany().HasForeignKey(t => t.StageGateId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<ProjectApproval>().HasOne(t => t.RequestedBy).WithMany().HasForeignKey(t => t.RequestedById).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<ProjectApproval>().HasOne(t => t.DecidedBy).WithMany().HasForeignKey(t => t.DecidedById).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<ProjectForecastSnapshot>().HasOne(t => t.Project).WithMany(p => p.ForecastSnapshots).HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<ProjectKnowledgeItem>().HasOne(t => t.Project).WithMany(p => p.KnowledgeItems).HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<ProjectKnowledgeItem>().HasOne(t => t.Author).WithMany().HasForeignKey(t => t.AuthorId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<AiSuggestionFeedback>().HasOne(t => t.Project).WithMany(p => p.AiSuggestionFeedback).HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
@@ -56,7 +72,13 @@ public class AppDbContext : DbContext
         mb.Entity<ProjectJiraLink>().HasOne(t => t.Project).WithOne(p => p.JiraLink).HasForeignKey<ProjectJiraLink>(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<Project>().HasIndex(p => p.TenantId);
         mb.Entity<ProjectTask>().HasIndex(t => t.ProjectId);
+        mb.Entity<AuditEntry>().HasIndex(t => t.TenantId);
+        mb.Entity<AuditEntry>().HasIndex(t => t.ProjectId);
         mb.Entity<ResourceAllocation>().HasIndex(r => new { r.UserId, r.ProjectId }).IsUnique();
+        mb.Entity<ProjectStageGate>().HasIndex(t => t.ProjectId);
+        mb.Entity<ProjectStageGateCheck>().HasIndex(t => t.StageGateId);
+        mb.Entity<ProjectApproval>().HasIndex(t => t.ProjectId);
+        mb.Entity<ProjectForecastSnapshot>().HasIndex(t => new { t.ProjectId, t.SnapshotDate }).IsUnique();
         mb.Entity<ProjectTeamsLink>().HasIndex(t => t.ProjectId).IsUnique();
         mb.Entity<ProjectJiraLink>().HasIndex(t => t.ProjectId).IsUnique();
 
