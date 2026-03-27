@@ -4,6 +4,8 @@ public record LoginRequest(string Email, string Password);
 public record LoginResponse(string Token, string UserName, string Email, string Role, Guid UserId, Guid TenantId);
 public record EntraExchangeRequest(string IdToken);
 public record AccessMatrixDto(string CurrentRole, List<string> AvailableRoles, Dictionary<string, bool> Permissions);
+public record EntraRoleMappingDto(string Role, string GroupId, bool IsConfigured);
+public record EntraIntegrationStatusDto(bool IsConfigured, string TenantId, string ClientId, bool AutoProvisionUsers, string DefaultRole, List<string> AllowedDomains, List<EntraRoleMappingDto> RoleMappings, string SetupHint);
 
 public record ProjectDto(
     Guid Id,

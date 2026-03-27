@@ -63,6 +63,7 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Im Entra ID Token wurde keine E-Mail gefunden." });
 
         var name = principal.FindFirstValue("name") ?? email;
+        var tokenGroups = principal.FindAll("groups").Select(claim => claim.Value).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         var allowedDomains = (_cfg["EntraId:AllowedDomains"] ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -75,6 +76,9 @@ public class AuthController : ControllerBase
         }
 
         var user = await _db.Users.Include(u => u.Tenant).FirstOrDefaultAsync(u => u.Email == email);
+        var mappedRole = ResolveRoleFromEntraGroups(tokenGroups);
+        var defaultRole = _cfg["EntraId:DefaultRole"] ?? "Member";
+        var targetRole = mappedRole ?? defaultRole;
         if (user == null)
         {
             var autoProvision = bool.TryParse(_cfg["EntraId:AutoProvisionUsers"], out var enabled) && enabled;
@@ -93,7 +97,7 @@ public class AuthController : ControllerBase
                 DisplayName = name,
                 Email = email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString("N")),
-                Role = _cfg["EntraId:DefaultRole"] ?? "Member",
+                Role = targetRole,
                 TenantId = tenant.Id,
                 Tenant = tenant,
             };
@@ -101,14 +105,66 @@ public class AuthController : ControllerBase
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
         }
-        else if (!string.Equals(user.DisplayName, name, StringComparison.Ordinal))
+        else
         {
-            user.DisplayName = name;
-            user.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
+            var changed = false;
+            if (!string.Equals(user.DisplayName, name, StringComparison.Ordinal))
+            {
+                user.DisplayName = name;
+                changed = true;
+            }
+
+            if (!string.Equals(user.Role, targetRole, StringComparison.Ordinal))
+            {
+                user.Role = targetRole;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                user.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
         }
 
         return Ok(BuildLoginResponse(user));
+    }
+
+    [Authorize]
+    [HttpGet("entra/status")]
+    public ActionResult<EntraIntegrationStatusDto> GetEntraStatus()
+    {
+        var clientId = _cfg["EntraId:ClientId"] ?? "";
+        var tenantId = _cfg["EntraId:TenantId"] ?? "";
+        var defaultRole = _cfg["EntraId:DefaultRole"] ?? "Member";
+        var autoProvisionUsers = bool.TryParse(_cfg["EntraId:AutoProvisionUsers"], out var enabled) && enabled;
+        var allowedDomains = (_cfg["EntraId:AllowedDomains"] ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        var roleMappings = RoleCatalog.AvailableRoles
+            .Select(role =>
+            {
+                var groupId = _cfg[$"EntraId:RoleMappings:{role}"] ?? "";
+                return new EntraRoleMappingDto(role, groupId, !string.IsNullOrWhiteSpace(groupId));
+            })
+            .ToList();
+
+        var isConfigured = !string.IsNullOrWhiteSpace(clientId) && !string.IsNullOrWhiteSpace(tenantId);
+        var setupHint = isConfigured
+            ? "Entra ID ist aktiv. Gruppen werden bei jedem Login auf PM-Rollen gemappt."
+            : "Setze ClientId und TenantId im Backend, um Entra ID und Rollenmapping zu aktivieren.";
+
+        return Ok(new EntraIntegrationStatusDto(
+            isConfigured,
+            clientId,
+            tenantId,
+            autoProvisionUsers,
+            defaultRole,
+            allowedDomains,
+            roleMappings,
+            setupHint
+        ));
     }
 
     [Authorize]
@@ -178,5 +234,23 @@ public class AuthController : ControllerBase
         };
 
         return handler.ValidateToken(idToken, validationParameters, out _);
+    }
+
+    private string? ResolveRoleFromEntraGroups(List<string> tokenGroups)
+    {
+        if (tokenGroups.Count == 0)
+            return null;
+
+        foreach (var role in RoleCatalog.AvailableRoles)
+        {
+            var configuredGroupId = _cfg[$"EntraId:RoleMappings:{role}"];
+            if (!string.IsNullOrWhiteSpace(configuredGroupId) &&
+                tokenGroups.Contains(configuredGroupId, StringComparer.OrdinalIgnoreCase))
+            {
+                return role;
+            }
+        }
+
+        return null;
     }
 }
