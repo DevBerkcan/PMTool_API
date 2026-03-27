@@ -157,8 +157,8 @@ public class AuthController : ControllerBase
 
         return Ok(new EntraIntegrationStatusDto(
             isConfigured,
-            clientId,
             tenantId,
+            clientId,
             autoProvisionUsers,
             defaultRole,
             allowedDomains,
