@@ -133,11 +133,61 @@ public class TeamController : ControllerBase
         if (user == null) return NotFound();
         if (user.Id == UserId) return BadRequest(new { message = "Aktueller Benutzer kann nicht entfernt werden." });
 
+        var blockers = await GetUserDeleteBlockers(id);
+        if (blockers.Count > 0)
+        {
+            return Conflict(new
+            {
+                message = $"Benutzer kann nicht geloescht werden, weil noch {blockers.Sum(x => x.Count)} Abhaengigkeiten vorhanden sind.",
+                blockers = blockers.Select(x => new { key = x.Key, label = x.Label, count = x.Count })
+            });
+        }
+
         var allocations = await _db.ResourceAllocations.Where(a => a.UserId == id).ToListAsync();
+        var activityLogs = await _db.ActivityLogs.Where(a => a.UserId == id).ToListAsync();
+        var auditEntries = await _db.AuditEntries.Where(a => a.UserId == id).ToListAsync();
         _db.ResourceAllocations.RemoveRange(allocations);
+        _db.ActivityLogs.RemoveRange(activityLogs);
+        _db.AuditEntries.RemoveRange(auditEntries);
         _db.Users.Remove(user);
         await _db.SaveChangesAsync();
 
         return NoContent();
     }
+
+    private async Task<List<DeleteBlocker>> GetUserDeleteBlockers(Guid userId)
+    {
+        var checks = new List<(string key, string label, Task<int> query)>
+        {
+            ("ownedProjects", "Projektverantwortung", _db.Projects.CountAsync(p => p.OwnerId == userId)),
+            ("assignedTasks", "Zugewiesene Tasks", _db.Tasks.CountAsync(t => t.AssigneeId == userId)),
+            ("taskComments", "Task-Kommentare", _db.TaskComments.CountAsync(c => c.AuthorId == userId)),
+            ("ownedRisks", "Risikoverantwortung", _db.Risks.CountAsync(r => r.OwnerId == userId)),
+            ("projectNotes", "Projektnotizen", _db.ProjectNotes.CountAsync(n => n.AuthorId == userId)),
+            ("leadTasks", "Projektleiter-Aufgaben", _db.ProjectLeadTasks.CountAsync(t => t.OwnerId == userId)),
+            ("milestones", "Meilensteine", _db.ProjectMilestones.CountAsync(m => m.OwnerId == userId)),
+            ("decisions", "Entscheidungen", _db.ProjectDecisions.CountAsync(d => d.OwnerId == userId)),
+            ("documents", "Dokumente", _db.ProjectDocuments.CountAsync(d => d.OwnerId == userId)),
+            ("governanceChecks", "Governance-Checks", _db.ProjectGovernanceChecks.CountAsync(c => c.OwnerId == userId)),
+            ("stageGates", "Stage Gates", _db.ProjectStageGates.CountAsync(g => g.OwnerId == userId)),
+            ("requestedApprovals", "Angeforderte Freigaben", _db.ProjectApprovals.CountAsync(a => a.RequestedById == userId)),
+            ("decidedApprovals", "Entschiedene Freigaben", _db.ProjectApprovals.CountAsync(a => a.DecidedById == userId)),
+            ("knowledgeItems", "Knowledge-Eintraege", _db.ProjectKnowledgeItems.CountAsync(k => k.AuthorId == userId)),
+            ("aiFeedback", "AI-Feedback", _db.AiSuggestionFeedback.CountAsync(f => f.UserId == userId)),
+        };
+
+        var blockers = new List<DeleteBlocker>();
+        foreach (var check in checks)
+        {
+            var count = await check.query;
+            if (count > 0)
+            {
+                blockers.Add(new DeleteBlocker(check.key, check.label, count));
+            }
+        }
+
+        return blockers;
+    }
+
+    private sealed record DeleteBlocker(string Key, string Label, int Count);
 }
