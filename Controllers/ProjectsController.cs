@@ -287,6 +287,52 @@ public class ProjectsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("admin/reset-workspace")]
+    public async Task<IActionResult> ResetWorkspace()
+    {
+        if (!RoleAccess.CanManagePortfolio(CurrentRole)) return Forbid();
+
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+
+        var currentUser = await _db.Users.FirstOrDefaultAsync(u => u.Id == UserId && u.TenantId == TenantId);
+        if (currentUser == null) return Unauthorized();
+
+        await _db.Database.ExecuteSqlRawAsync("UPDATE [Projects] SET [OwnerId] = {0} WHERE [TenantId] = {1}", UserId, TenantId);
+
+        await _db.TaskComments.ExecuteDeleteAsync();
+        await _db.Tasks.ExecuteDeleteAsync();
+        await _db.Risks.ExecuteDeleteAsync();
+        await _db.ProjectStageGateChecks.ExecuteDeleteAsync();
+        await _db.ProjectApprovals.ExecuteDeleteAsync();
+        await _db.ProjectStageGates.ExecuteDeleteAsync();
+        await _db.ProjectGovernanceChecks.ExecuteDeleteAsync();
+        await _db.ProjectDocuments.ExecuteDeleteAsync();
+        await _db.ProjectDecisions.ExecuteDeleteAsync();
+        await _db.ProjectMilestones.ExecuteDeleteAsync();
+        await _db.ProjectLeadTasks.ExecuteDeleteAsync();
+        await _db.ProjectNotes.ExecuteDeleteAsync();
+        await _db.ProjectForecastSnapshots.ExecuteDeleteAsync();
+        await _db.ProjectKnowledgeItems.ExecuteDeleteAsync();
+        await _db.AiSuggestionFeedback.ExecuteDeleteAsync();
+        await _db.ProjectTeamsLinks.ExecuteDeleteAsync();
+        await _db.ProjectJiraLinks.ExecuteDeleteAsync();
+        await _db.ResourceAllocations.ExecuteDeleteAsync();
+        await _db.ActivityLogs.ExecuteDeleteAsync();
+        await _db.AuditEntries.ExecuteDeleteAsync();
+
+        await _db.Users
+            .Where(u => u.TenantId == TenantId && u.Id != UserId)
+            .ExecuteDeleteAsync();
+
+        await transaction.CommitAsync();
+
+        return Ok(new
+        {
+            message = "Workspace wurde bereinigt. Portfolio-Projekte bleiben erhalten, Detaildaten und Teamverbindungen wurden entfernt.",
+            keptUserId = UserId
+        });
+    }
+
     [HttpGet("{id}/team")]
     public async Task<ActionResult<List<ProjectTeamMemberDto>>> GetTeam(Guid id)
     {
