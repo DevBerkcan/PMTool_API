@@ -31,6 +31,9 @@ public class AppDbContext : DbContext
     public DbSet<ProjectJiraLink> ProjectJiraLinks => Set<ProjectJiraLink>();
     public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
     public DbSet<TimeEntryNotification> TimeEntryNotifications => Set<TimeEntryNotification>();
+    public DbSet<ProjectContact> ProjectContacts => Set<ProjectContact>();
+    public DbSet<ProjectMeeting> ProjectMeetings => Set<ProjectMeeting>();
+    public DbSet<GraphToken> GraphTokens => Set<GraphToken>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -92,6 +95,14 @@ public class AppDbContext : DbContext
         mb.Entity<TimeEntryNotification>().HasOne(t => t.Project).WithMany().HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
         mb.Entity<TimeEntryNotification>().HasOne(t => t.SubmittedBy).WithMany().HasForeignKey(t => t.SubmittedByUserId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<TimeEntryNotification>().HasIndex(t => new { t.TenantId, t.ForUserId, t.IsRead });
+
+        mb.Entity<ProjectContact>().HasOne(c => c.Project).WithMany(p => p.Contacts).HasForeignKey(c => c.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<ProjectContact>().HasIndex(c => c.ProjectId);
+
+        mb.Entity<ProjectMeeting>().HasOne(m => m.Project).WithMany(p => p.Meetings).HasForeignKey(m => m.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<ProjectMeeting>().HasOne(m => m.CreatedBy).WithMany().HasForeignKey(m => m.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<ProjectMeeting>().HasIndex(m => m.ProjectId);
+        mb.Entity<GraphToken>().HasIndex(t => t.TenantId);
 
         var tenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var ownerId = Guid.Parse("22222222-2222-2222-2222-222222222222");

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PmTool.Api.Models;
 
@@ -10,9 +11,11 @@ using PmTool.Api.Models;
 namespace PmTool.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260407112833_AddContactsAndNoteExtensions")]
+    partial class AddContactsAndNoteExtensions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.3");
@@ -308,7 +311,7 @@ namespace PmTool.Api.Migrations
                             BudgetTotal = 180000m,
                             Category = "product",
                             Communication = "Wochenstatus montags, Team-Sync mittwochs, Review freitags.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6179),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(707),
                             Customer = "RealCore Intern",
                             DeliveryModel = "Produktentwicklung",
                             Description = "Dokumentenablage und zentrale Plattform fuer Projektsteuerung, Teamtransparenz und operative Zusammenarbeit.",
@@ -329,7 +332,7 @@ namespace PmTool.Api.Migrations
                             SuccessMetric = "Projektteams koennen alle relevanten Projektinformationen in unter 2 Minuten finden und pflegen.",
                             TechnologiesCsv = "Next.js|TypeScript|Zustand|Tailwind CSS|ASP.NET Core",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6179)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(708)
                         },
                         new
                         {
@@ -338,7 +341,7 @@ namespace PmTool.Api.Migrations
                             BudgetTotal = 140000m,
                             Category = "product",
                             Communication = "Briefing Review dienstags, Prompt-Tuning donnerstags.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6245),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(751),
                             Customer = "RealCore Intern",
                             DeliveryModel = "Produktentwicklung",
                             Description = "Plugin fuer Teams und spaeter Copilot fuer schnelle Management-Briefings mit Projektstatus, Risiken und To-dos aus einer Quelle.",
@@ -359,7 +362,7 @@ namespace PmTool.Api.Migrations
                             SuccessMetric = "Ein Briefing fuer ein Projekt kann in unter 30 Sekunden erstellt werden.",
                             TechnologiesCsv = "Next.js|TypeScript|LLM Integration|Microsoft Teams",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6245)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(751)
                         },
                         new
                         {
@@ -368,7 +371,7 @@ namespace PmTool.Api.Migrations
                             BudgetTotal = 85000m,
                             Category = "delivery",
                             Communication = "Jour fixe mit Fachbereich donnerstags, Umsetzungsreview montags.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6251),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(758),
                             Customer = "Interner Fachbereich",
                             DeliveryModel = "Power Platform Delivery",
                             Description = "Erweiterung der bestehenden PowerApp mit Freeform-Komponenten. Philipp ist in der Umsetzung.",
@@ -389,7 +392,7 @@ namespace PmTool.Api.Migrations
                             SuccessMetric = "Der Fachbereich kann neue Freeform-Strecken ohne Medienbruch in der App nutzen.",
                             TechnologiesCsv = "Power Apps|Power Automate|Dataverse",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6251)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(758)
                         },
                         new
                         {
@@ -398,7 +401,7 @@ namespace PmTool.Api.Migrations
                             BudgetTotal = 220000m,
                             Category = "rollout",
                             Communication = "Rollout-Abstimmung dienstags, Technikreview freitags.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6255),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(763),
                             Customer = "Retail Operations",
                             DeliveryModel = "Custom Development",
                             Description = "React-basierte POS-App. Standorte benoetigen Kassenpakete; Standortdaten kommen initial aus Excel.",
@@ -419,7 +422,7 @@ namespace PmTool.Api.Migrations
                             SuccessMetric = "Ein Standort kann in unter 10 Minuten angelegt und einem Kassenpaket zugeordnet werden.",
                             TechnologiesCsv = "React|TypeScript|Excel Import|REST API",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6255)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(764)
                         },
                         new
                         {
@@ -428,7 +431,7 @@ namespace PmTool.Api.Migrations
                             BudgetTotal = 60000m,
                             Category = "governance",
                             Communication = "Governance Review jeden Mittwoch mit Projektleitung und Management.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6260),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(768),
                             Customer = "Management",
                             DeliveryModel = "PMO & Standards",
                             Description = "Querschnittsprojekt fuer PM-Standards, Stage Gates, Architektur, Risiko- und Entscheidungssteuerung.",
@@ -449,7 +452,7 @@ namespace PmTool.Api.Migrations
                             SuccessMetric = "Alle Projekte folgen denselben Pflichtfeldern, Entscheidungswegen und Abnahme-Gates.",
                             TechnologiesCsv = "PM Framework|Governance|Reporting",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6260)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(769)
                         });
                 });
 
@@ -620,66 +623,66 @@ namespace PmTool.Api.Migrations
                         {
                             Id = new Guid("81818181-8181-8181-8181-818181818181"),
                             Context = "Es muss entschieden werden, ob Dokumente nach Projektphase oder Fachbereich organisiert werden.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6485),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1096),
                             Decision = "Projektphase bleibt der primaere Einstieg, Fachbereich wird als Filter abgebildet.",
                             DueDate = new DateOnly(2026, 3, 29),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             Status = "done",
                             Title = "Dokumentstruktur finalisieren",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6485)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1096)
                         },
                         new
                         {
                             Id = new Guid("82828282-8282-8282-8282-828282828282"),
                             Context = "Klärung, ob zuerst Teams oder direkt Copilot priorisiert wird.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6490),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1101),
                             Decision = "Zuerst Teams Plugin, danach Copilot-Integration mit denselben Prompt-Bausteinen.",
                             DueDate = new DateOnly(2026, 4, 4),
                             OwnerId = new Guid("77777777-7777-7777-7777-777777777777"),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             Status = "open",
                             Title = "Copilot Zielarchitektur",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6490)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1102)
                         },
                         new
                         {
                             Id = new Guid("83838383-8383-8383-8383-838383838383"),
                             Context = "Neue Felder koennen in Dataverse oder lokal in der App gehalten werden.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6493),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1106),
                             Decision = "Noch offen, Dataverse-Pfad wird bewertet.",
                             DueDate = new DateOnly(2026, 3, 30),
                             OwnerId = new Guid("10101010-1010-1010-1010-101010101010"),
                             ProjectId = new Guid("34343434-3434-3434-3434-343434343434"),
                             Status = "open",
                             Title = "Freeform Datenmodell",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6493)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1106)
                         },
                         new
                         {
                             Id = new Guid("84848484-8484-8484-8484-848484848484"),
                             Context = "Excel ist Startpunkt, langfristig wird eine Schnittstelle erwartet.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6495),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1111),
                             Decision = "Go-live mit Excel-Import, API-Schnittstelle als Folgephase.",
                             DueDate = new DateOnly(2026, 4, 8),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             Status = "review",
                             Title = "Standortdatenquelle",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6495)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1111)
                         },
                         new
                         {
                             Id = new Guid("85858585-8585-8585-8585-858585858585"),
                             Context = "Standardisierte Gates muessen fuer alle Projekte verbindlich werden.",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6497),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1114),
                             Decision = "Kickoff, Scope Freeze, Test Readiness und Go-live sind Pflicht-Gates.",
                             DueDate = new DateOnly(2026, 3, 31),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("56565656-5656-5656-5656-565656565656"),
                             Status = "done",
                             Title = "Pflicht-Gates fuer Delivery",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6497)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1114)
                         });
                 });
 
@@ -734,60 +737,60 @@ namespace PmTool.Api.Migrations
                         {
                             Id = new Guid("91919191-9191-9191-9191-919191919191"),
                             Category = "Projektakte",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6511),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1135),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             Status = "approved",
                             Title = "Projektsteckbrief",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6511),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1135),
                             Url = "https://gshare.realcore.local/docs/g-share/steckbrief"
                         },
                         new
                         {
                             Id = new Guid("92929292-9292-9292-9292-929292929292"),
                             Category = "Konzept",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6515),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1138),
                             OwnerId = new Guid("77777777-7777-7777-7777-777777777777"),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             Status = "draft",
                             Title = "Teams Plugin Konzept",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6515),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1139),
                             Url = "https://gshare.realcore.local/docs/ai-briefing/teams-plugin"
                         },
                         new
                         {
                             Id = new Guid("93939393-9393-9393-9393-939393939393"),
                             Category = "Delivery",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6517),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1142),
                             OwnerId = new Guid("10101010-1010-1010-1010-101010101010"),
                             ProjectId = new Guid("34343434-3434-3434-3434-343434343434"),
                             Status = "draft",
                             Title = "Freeform Umsetzungsnotizen",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6517),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1143),
                             Url = "https://gshare.realcore.local/docs/freeform/umsetzung"
                         },
                         new
                         {
                             Id = new Guid("94949494-9494-9494-9494-949494949494"),
                             Category = "Spezifikation",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6519),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1145),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             Status = "review",
                             Title = "Excel Datenmapping",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6519),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1145),
                             Url = "https://gshare.realcore.local/docs/pos/excel-mapping"
                         },
                         new
                         {
                             Id = new Guid("95959595-9595-9595-9595-959595959595"),
                             Category = "Governance",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6521),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1147),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("56565656-5656-5656-5656-565656565656"),
                             Status = "approved",
                             Title = "Governance Handbuch",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6521),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1147),
                             Url = "https://gshare.realcore.local/docs/governance/handbuch"
                         });
                 });
@@ -904,66 +907,66 @@ namespace PmTool.Api.Migrations
                         {
                             Id = new Guid("a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1"),
                             Area = "Kickoff",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6537),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1170),
                             DueDate = new DateOnly(2026, 3, 27),
                             Notes = "Projektziele, Scope und Verantwortungen sind hinterlegt.",
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             Status = "done",
                             Title = "Projektsteckbrief gepflegt",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6538)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1170)
                         },
                         new
                         {
                             Id = new Guid("a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2"),
                             Area = "Steering",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6542),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1176),
                             DueDate = new DateOnly(2026, 4, 3),
                             Notes = "Sales und Management muessen den Pilotumfang bestaetigen.",
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             Status = "open",
                             Title = "Stakeholder-Review geplant",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6542)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1176)
                         },
                         new
                         {
                             Id = new Guid("a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3"),
                             Area = "Scope Control",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6545),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1178),
                             DueDate = new DateOnly(2026, 4, 2),
                             Notes = "Fachbereichsaenderungen duerfen nur ueber Change Request aufgenommen werden.",
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("34343434-3434-3434-3434-343434343434"),
                             Status = "open",
                             Title = "Change Request Prozess geklaert",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6545)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1179)
                         },
                         new
                         {
                             Id = new Guid("a4a4a4a4-a4a4-a4a4-a4a4-a4a4a4a4a4a4"),
                             Area = "Go-live",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6547),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1181),
                             DueDate = new DateOnly(2026, 4, 15),
                             Notes = "Standortdaten, Paketzuordnung und Teststand muessen vor Rollout vollstaendig sein.",
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             Status = "open",
                             Title = "Rollout-Gate vorbereitet",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6547)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1181)
                         },
                         new
                         {
                             Id = new Guid("a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5"),
                             Area = "PMO",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6551),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1183),
                             DueDate = new DateOnly(2026, 3, 31),
                             Notes = "Pflicht-Gates fuer alle Projekte werden verbindlich dokumentiert.",
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("56565656-5656-5656-5656-565656565656"),
                             Status = "in_progress",
                             Title = "Standard-Gates dokumentiert",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6551)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1184)
                         });
                 });
 
@@ -1244,98 +1247,98 @@ namespace PmTool.Api.Migrations
                         new
                         {
                             Id = new Guid("19191919-1919-1919-1919-191919191919"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6421),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1018),
                             Description = "Budget, Fortschritt und Risiken fuer den Wochenbericht aktualisieren.",
                             DueDate = new DateOnly(2026, 3, 25),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             Status = "in_progress",
                             Title = "Wochenstatus vorbereiten",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6421)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1018)
                         },
                         new
                         {
                             Id = new Guid("20202020-2020-2020-2020-202020202020"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6425),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1027),
                             Description = "Termin fuer Review der Projekt-Detailseiten festlegen.",
                             DueDate = new DateOnly(2026, 3, 29),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             Status = "todo",
                             Title = "Abnahme mit Stakeholdern planen",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6425)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1027)
                         },
                         new
                         {
                             Id = new Guid("21212121-2121-2121-2121-212121212121"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6428),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1030),
                             Description = "Offene Scope-Fragen in den Projektnotizen festhalten.",
                             DueDate = new DateOnly(2026, 3, 22),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             Status = "done",
                             Title = "Offene Entscheidungen dokumentieren",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6428)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1030)
                         },
                         new
                         {
                             Id = new Guid("22222221-2222-2222-2222-222222222221"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6432),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1032),
                             Description = "Formulierung fuer Status- und Risikoantworten finalisieren.",
                             DueDate = new DateOnly(2026, 3, 26),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             Status = "todo",
                             Title = "Prompt-Vorlagen abstimmen",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6432)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1032)
                         },
                         new
                         {
                             Id = new Guid("23232323-2323-2323-2323-232323232323"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6434),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1035),
                             Description = "Feedback fuer die erste Briefing-Version einholen.",
                             DueDate = new DateOnly(2026, 3, 30),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             Status = "in_progress",
                             Title = "Testbriefing mit Management teilen",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6434)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1036)
                         },
                         new
                         {
                             Id = new Guid("24242424-2424-2424-2424-242424242424"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6436),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1038),
                             Description = "Fachliche und technische Review-Punkte fuer die Freeform-Erweiterung vorbereiten.",
                             DueDate = new DateOnly(2026, 3, 28),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("34343434-3434-3434-3434-343434343434"),
                             Status = "todo",
                             Title = "Review mit Philipp vorbereiten",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6436)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1038)
                         },
                         new
                         {
                             Id = new Guid("25252525-2525-2525-2525-252525252525"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6438),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1040),
                             Description = "Kassenpakete und Rollout-Zuordnung fachlich finalisieren.",
                             DueDate = new DateOnly(2026, 4, 2),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             Status = "in_progress",
                             Title = "Standortpakete definieren",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6438)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1040)
                         },
                         new
                         {
                             Id = new Guid("26262626-2626-2626-2626-262626262626"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6440),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1042),
                             Description = "Pflichtfelder fuer Kickoff, Delivery und Go-Live definieren.",
                             DueDate = new DateOnly(2026, 3, 31),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("56565656-5656-5656-5656-565656565656"),
                             Status = "todo",
                             Title = "Stage Gate Pflichtfelder festlegen",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6440)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1042)
                         });
                 });
 
@@ -1386,62 +1389,62 @@ namespace PmTool.Api.Migrations
                         new
                         {
                             Id = new Guid("71717171-7171-7171-7171-717171717171"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6459),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1063),
                             Description = "Projektakten, Ordnerstruktur und Dokumentenlisten in Produktion schalten.",
                             DueDate = new DateOnly(2026, 4, 5),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             Status = "in_progress",
                             Title = "Dokumentenablage Release",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6460)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1063)
                         },
                         new
                         {
                             Id = new Guid("72727272-7272-7272-7272-727272727272"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6462),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1068),
                             Description = "Einbindung in Microsoft Teams fachlich und technisch finalisieren.",
                             DueDate = new DateOnly(2026, 4, 10),
                             OwnerId = new Guid("77777777-7777-7777-7777-777777777777"),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             Status = "planned",
                             Title = "Teams Plugin Konzept",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6462)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1068)
                         },
                         new
                         {
                             Id = new Guid("73737373-7373-7373-7373-737373737373"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6464),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1070),
                             Description = "Erste fachliche Abnahme der Freeform-Strecke.",
                             DueDate = new DateOnly(2026, 4, 3),
                             OwnerId = new Guid("10101010-1010-1010-1010-101010101010"),
                             ProjectId = new Guid("34343434-3434-3434-3434-343434343434"),
                             Status = "planned",
                             Title = "Freeform Review",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6464)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1070)
                         },
                         new
                         {
                             Id = new Guid("74747474-7474-7474-7474-747474747474"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6467),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1072),
                             Description = "Standortmodell und Importlogik gemeinsam mit Operations pruefen.",
                             DueDate = new DateOnly(2026, 4, 12),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             Status = "planned",
                             Title = "Excel Import Abnahme",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6468)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1072)
                         },
                         new
                         {
                             Id = new Guid("75757575-7575-7575-7575-757575757575"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6469),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1076),
                             Description = "Pflichtcheckliste fuer neue Projekte ausrollen.",
                             DueDate = new DateOnly(2026, 4, 1),
                             OwnerId = new Guid("22222222-2222-2222-2222-222222222222"),
                             ProjectId = new Guid("56565656-5656-5656-5656-565656565656"),
                             Status = "in_progress",
                             Title = "Governance Gate v1",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6470)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1076)
                         });
                 });
 
@@ -1792,26 +1795,26 @@ namespace PmTool.Api.Migrations
                             Id = new Guid("d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1"),
                             ChannelId = "channel-briefing-pilot",
                             ChannelName = "briefing-pilot",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6610),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1334),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             SyncStatus = "planned",
                             TeamId = "teams-ai-briefing",
                             TeamName = "AI Briefing Tool",
                             TenantDomain = "realcore.onmicrosoft.com",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6610)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1334)
                         },
                         new
                         {
                             Id = new Guid("d2d2d2d2-d2d2-d2d2-d2d2-d2d2d2d2d2d2"),
                             ChannelId = "channel-weekly-sync",
                             ChannelName = "weekly-sync",
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6614),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1337),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             SyncStatus = "planned",
                             TeamId = "teams-pos-rollout",
                             TeamName = "POS Rollout",
                             TenantDomain = "realcore.onmicrosoft.com",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6614)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(1337)
                         });
                 });
 
@@ -1859,198 +1862,198 @@ namespace PmTool.Api.Migrations
                         {
                             Id = new Guid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
                             AllocatedHours = 34,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6285),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(797),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             ProjectRole = "Projektleiter",
                             Responsibility = "Steuerung, Stakeholder-Management, Priorisierung",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6285),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(797),
                             UserId = new Guid("22222222-2222-2222-2222-222222222222")
                         },
                         new
                         {
                             Id = new Guid("cccccccc-cccc-cccc-cccc-cccccccccccc"),
                             AllocatedHours = 30,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6290),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(805),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             ProjectRole = "Product Owner",
                             Responsibility = "Anforderungen, Backlog, Fachseite",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6290),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(806),
                             UserId = new Guid("44444444-4444-4444-4444-444444444444")
                         },
                         new
                         {
                             Id = new Guid("dddddddd-dddd-dddd-dddd-dddddddddddd"),
                             AllocatedHours = 36,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6292),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(807),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             ProjectRole = "Frontend Developer",
                             Responsibility = "Dashboard, Projektseiten, UX-Umsetzung",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6292),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(808),
                             UserId = new Guid("55555555-5555-5555-5555-555555555555")
                         },
                         new
                         {
                             Id = new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
                             AllocatedHours = 32,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6296),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(809),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             ProjectRole = "Backend Developer",
                             Responsibility = "APIs, Datenmodell, Berechtigungen",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6297),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(809),
                             UserId = new Guid("66666666-6666-6666-6666-666666666666")
                         },
                         new
                         {
                             Id = new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff"),
                             AllocatedHours = 28,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6298),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(814),
                             ProjectId = new Guid("33333333-3333-3333-3333-333333333333"),
                             ProjectRole = "QA Engineer",
                             Responsibility = "Testfaelle, Regression, Abnahme",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6298),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(814),
                             UserId = new Guid("99999999-9999-9999-9999-999999999999")
                         },
                         new
                         {
                             Id = new Guid("12121212-1212-1212-1212-121212121212"),
                             AllocatedHours = 18,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6300),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(815),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             ProjectRole = "Projektleiter",
                             Responsibility = "Roadmap, Stakeholder, Freigaben",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6300),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(816),
                             UserId = new Guid("22222222-2222-2222-2222-222222222222")
                         },
                         new
                         {
                             Id = new Guid("13131313-1313-1313-1313-131313131313"),
                             AllocatedHours = 38,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6302),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(818),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             ProjectRole = "AI Engineer",
                             Responsibility = "Prompting, Auswertung, Response-Logik",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6302),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(818),
                             UserId = new Guid("77777777-7777-7777-7777-777777777777")
                         },
                         new
                         {
                             Id = new Guid("14141414-1414-1414-1414-141414141414"),
                             AllocatedHours = 20,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6304),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(820),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             ProjectRole = "Frontend Developer",
                             Responsibility = "Chat-UI und Briefing-Darstellung",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6304),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(820),
                             UserId = new Guid("55555555-5555-5555-5555-555555555555")
                         },
                         new
                         {
                             Id = new Guid("15151515-1515-1515-1515-151515151515"),
                             AllocatedHours = 24,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6305),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(822),
                             ProjectId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                             ProjectRole = "UX Designer",
                             Responsibility = "Informationsarchitektur und Lesbarkeit",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6306),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(822),
                             UserId = new Guid("88888888-8888-8888-8888-888888888888")
                         },
                         new
                         {
                             Id = new Guid("61616161-6161-6161-6161-616161616161"),
                             AllocatedHours = 12,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6307),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(823),
                             ProjectId = new Guid("34343434-3434-3434-3434-343434343434"),
                             ProjectRole = "Projektleiter",
                             Responsibility = "Steuerung, Fachbereich, Abnahme",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6307),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(824),
                             UserId = new Guid("22222222-2222-2222-2222-222222222222")
                         },
                         new
                         {
                             Id = new Guid("62626262-6262-6262-6262-626262626262"),
                             AllocatedHours = 36,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6309),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(825),
                             ProjectId = new Guid("34343434-3434-3434-3434-343434343434"),
                             ProjectRole = "Lead Developer",
                             Responsibility = "Umsetzung der Freeform-Erweiterung",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6309),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(825),
                             UserId = new Guid("10101010-1010-1010-1010-101010101010")
                         },
                         new
                         {
                             Id = new Guid("63636363-6363-6363-6363-636363636363"),
                             AllocatedHours = 10,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6312),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(827),
                             ProjectId = new Guid("34343434-3434-3434-3434-343434343434"),
                             ProjectRole = "Fachliche Steuerung",
                             Responsibility = "Anforderungen und Priorisierung",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6312),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(827),
                             UserId = new Guid("44444444-4444-4444-4444-444444444444")
                         },
                         new
                         {
                             Id = new Guid("64646464-6464-6464-6464-646464646464"),
                             AllocatedHours = 20,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6314),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(832),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             ProjectRole = "Projektleiter",
                             Responsibility = "Rollout-Steuerung, Stakeholder, Risiko-Management",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6314),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(832),
                             UserId = new Guid("22222222-2222-2222-2222-222222222222")
                         },
                         new
                         {
                             Id = new Guid("65656565-6565-6565-6565-656565656565"),
                             AllocatedHours = 28,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6316),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(834),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             ProjectRole = "React Developer",
                             Responsibility = "POS Frontend und Standort-UI",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6316),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(834),
                             UserId = new Guid("55555555-5555-5555-5555-555555555555")
                         },
                         new
                         {
                             Id = new Guid("66666661-6666-6666-6666-666666666661"),
                             AllocatedHours = 24,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6318),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(836),
                             ProjectId = new Guid("45454545-4545-4545-4545-454545454545"),
                             ProjectRole = "Backend Developer",
                             Responsibility = "Import, Standortdaten, Schnittstellen",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6319),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(836),
                             UserId = new Guid("66666666-6666-6666-6666-666666666666")
                         },
                         new
                         {
                             Id = new Guid("67676767-6767-6767-6767-676767676767"),
                             AllocatedHours = 14,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6320),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(838),
                             ProjectId = new Guid("56565656-5656-5656-5656-565656565656"),
                             ProjectRole = "Programmleitung",
                             Responsibility = "Standards, Stage Gates, Reporting",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6320),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(838),
                             UserId = new Guid("22222222-2222-2222-2222-222222222222")
                         },
                         new
                         {
                             Id = new Guid("68686868-6868-6868-6868-686868686868"),
                             AllocatedHours = 8,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6322),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(840),
                             ProjectId = new Guid("56565656-5656-5656-5656-565656565656"),
                             ProjectRole = "PMO",
                             Responsibility = "Templates, Pflichtfelder, Review-Prozesse",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6322),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(840),
                             UserId = new Guid("44444444-4444-4444-4444-444444444444")
                         },
                         new
                         {
                             Id = new Guid("69696969-6969-6969-6969-696969696969"),
                             AllocatedHours = 6,
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6324),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(842),
                             ProjectId = new Guid("56565656-5656-5656-5656-565656565656"),
                             ProjectRole = "Quality",
                             Responsibility = "Abnahme- und Gate-Checklisten",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6324),
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(842),
                             UserId = new Guid("99999999-9999-9999-9999-999999999999")
                         });
                 });
@@ -2170,11 +2173,11 @@ namespace PmTool.Api.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(5991),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(386),
                             IsActive = true,
                             Name = "RealCore",
                             Slug = "realcore",
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(5994)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(392)
                         });
                 });
 
@@ -2338,90 +2341,90 @@ namespace PmTool.Api.Migrations
                         new
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6128),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(573),
                             DisplayName = "Berk Can Atesoglu",
                             Email = "berkcan@realcore.de",
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "Projektleiter",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6129)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(573)
                         },
                         new
                         {
                             Id = new Guid("44444444-4444-4444-4444-444444444444"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6134),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(591),
                             DisplayName = "Selin Kaya",
                             Email = "selin@realcore.de",
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "Product Owner",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6134)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(592)
                         },
                         new
                         {
                             Id = new Guid("55555555-5555-5555-5555-555555555555"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6135),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(593),
                             DisplayName = "Emre Yilmaz",
                             Email = "emre@realcore.de",
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "Frontend Developer",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6135)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(594)
                         },
                         new
                         {
                             Id = new Guid("66666666-6666-6666-6666-666666666666"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6137),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(595),
                             DisplayName = "Mira Hoffmann",
                             Email = "mira@realcore.de",
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "Backend Developer",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6137)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(595)
                         },
                         new
                         {
                             Id = new Guid("77777777-7777-7777-7777-777777777777"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6139),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(597),
                             DisplayName = "Can Demir",
                             Email = "can@realcore.de",
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "AI Engineer",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6139)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(597)
                         },
                         new
                         {
                             Id = new Guid("88888888-8888-8888-8888-888888888888"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6141),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(598),
                             DisplayName = "Lena Schmidt",
                             Email = "lena@realcore.de",
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "UX Designer",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6141)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(599)
                         },
                         new
                         {
                             Id = new Guid("99999999-9999-9999-9999-999999999999"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6142),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(600),
                             DisplayName = "Jonas Weber",
                             Email = "jonas@realcore.de",
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "QA Engineer",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6142)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(600)
                         },
                         new
                         {
                             Id = new Guid("10101010-1010-1010-1010-101010101010"),
-                            CreatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6144),
+                            CreatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(602),
                             DisplayName = "Philipp Schneider",
                             Email = "philipp@realcore.de",
                             PasswordHash = "$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.",
                             Role = "Power Platform Developer",
                             TenantId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(2026, 4, 7, 12, 12, 58, 66, DateTimeKind.Utc).AddTicks(6144)
+                            UpdatedAt = new DateTime(2026, 4, 7, 11, 28, 33, 475, DateTimeKind.Utc).AddTicks(602)
                         });
                 });
 

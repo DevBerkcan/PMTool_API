@@ -36,7 +36,8 @@ public record ProjectTeamMemberDto(
     int TotalCapacityHours
 );
 
-public record ProjectNoteDto(Guid Id, string Title, string Content, string AuthorName, DateTime CreatedAt);
+public record ProjectNoteDto(Guid Id, string Title, string Content, string AuthorName, DateTime CreatedAt, string Category, string Participants, DateOnly? MeetingDate, bool IsPinned);
+public record ProjectContactDto(Guid Id, string Name, string Email, string Phone, string Company, string Role, string Supervisor, string Notes);
 public record ProjectLeadTaskDto(Guid Id, string Title, string Description, string OwnerName, DateOnly DueDate, string Status);
 public record ProjectMilestoneDto(Guid Id, string Title, string Description, string OwnerName, DateOnly DueDate, string Status);
 public record ProjectDecisionDto(Guid Id, string Title, string Context, string Decision, string OwnerName, DateOnly DueDate, string Status);
@@ -93,7 +94,8 @@ public record ProjectDetailDto(
     List<ProjectApprovalDto> Approvals,
     List<ProjectKnowledgeItemDto> KnowledgeItems,
     ProjectTeamsLinkDto? TeamsLink,
-    ProjectJiraLinkDto? JiraLink
+    ProjectJiraLinkDto? JiraLink,
+    List<ProjectContactDto> Contacts
 );
 
 public record CreateProjectRequest(string Name, string Description, string Customer, decimal BudgetTotal, DateOnly StartDate, DateOnly EndDate);
@@ -118,7 +120,9 @@ public record TeamMemberDto(Guid Id, string Name, string Email, string Role, int
 public record InviteTeamMemberRequest(string Name, string Email, string Role);
 public record UpdateTeamMemberRequest(string? Name, string? Role);
 
-public record CreateProjectNoteRequest(string Title, string Content);
+public record CreateProjectNoteRequest(string Title, string Content, string? Category, string? Participants, DateOnly? MeetingDate);
+public record UpdateProjectNoteRequest(string Title, string Content, string? Category, string? Participants, DateOnly? MeetingDate, bool? IsPinned);
+public record UpsertProjectContactRequest(string Name, string? Email, string? Phone, string? Company, string? Role, string? Supervisor, string? Notes);
 public record CreateProjectLeadTaskRequest(string Title, string Description, Guid? OwnerId, DateOnly DueDate);
 public record UpdateProjectLeadTaskStatusRequest(string Status);
 public record CreateProjectMilestoneRequest(string Title, string Description, Guid? OwnerId, DateOnly DueDate);
@@ -170,6 +174,10 @@ public record MeetingExtractedItemDto(string Type, string Title, string Detail);
 public record MeetingAnalyzeResponse(Guid ProjectId, string SourceType, string Title, string Summary, List<MeetingExtractedItemDto> Actions, List<MeetingExtractedItemDto> Decisions, List<MeetingExtractedItemDto> Risks, List<MeetingExtractedItemDto> Knowledge);
 public record MeetingCommitRequest(Guid ProjectId, string SourceType, string Title, string Content);
 public record MeetingCommitResponse(Guid ProjectId, string Title, int CreatedTasks, int CreatedDecisions, int CreatedRisks, int CreatedKnowledgeItems, string Summary);
+public record ProjectMeetingDto(Guid Id, string Title, DateTime MeetingDate, string Participants, string Location, string TeamsJoinUrl, string TeamsOnlineMeetingId, string TranscriptSource, DateTime? TranscriptFetchedAt, string ExtractionStatus, string Notes, string CreatedByName, DateTime CreatedAt, bool HasTranscript);
+public record CreateProjectMeetingRequest(string Title, DateTime MeetingDate, string? Participants, string? Location, string? TeamsJoinUrl, string? TeamsOnlineMeetingId, string? Notes);
+public record UpdateProjectMeetingRequest(string? Title, DateTime? MeetingDate, string? Participants, string? Location, string? TeamsJoinUrl, string? TeamsOnlineMeetingId, string? Notes);
+public record AddTranscriptRequest(string TranscriptText);
 public record GraphIntegrationStatusDto(bool IsConfigured, string ClientId, string TenantId, string RedirectUri, List<string> Scopes, string SetupHint);
 public record GraphAuthStartResponse(string AuthorizationUrl, string State, string RedirectUri);
 public record GraphAuthCallbackResponse(bool Success, string Message, string Scope, int ExpiresIn, string TokenType);

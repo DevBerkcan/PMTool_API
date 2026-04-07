@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using PmTool.Api.Models;
 using System.Net.Http.Json;
+using System.Security.Claims;
 
 namespace PmTool.Api.Controllers;
 
@@ -11,11 +13,14 @@ public class IntegrationsController : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AppDbContext _db;
+    private Guid TenantId => Guid.Parse(User.FindFirstValue("tenantId")!);
 
-    public IntegrationsController(IConfiguration configuration, IHttpClientFactory httpClientFactory)
+    public IntegrationsController(IConfiguration configuration, IHttpClientFactory httpClientFactory, AppDbContext db)
     {
         _configuration = configuration;
         _httpClientFactory = httpClientFactory;
+        _db = db;
     }
 
     [HttpGet("graph/status")]
@@ -148,19 +153,60 @@ public class IntegrationsController : ControllerBase
             return BadRequest(new GraphAuthCallbackResponse(false, "Graph OAuth Antwort konnte nicht gelesen werden.", "", 0, ""));
         }
 
+        // Persist (upsert) the token for this tenant
+        // The callback is AllowAnonymous so we read tenant from state or use a fallback
+        // We store per-tenant based on the configured tenantId (single-tenant setup)
+        var configTenantId = _configuration["MicrosoftGraph:TenantId"] ?? "";
+        if (Guid.TryParse(configTenantId, out var graphTenantGuid))
+        {
+            var existing = await _db.GraphTokens.Where(t => t.TenantId == graphTenantGuid).FirstOrDefaultAsync();
+            if (existing != null)
+            {
+                existing.AccessToken = tokenResponse.AccessToken ?? "";
+                existing.RefreshToken = tokenResponse.RefreshToken ?? "";
+                existing.ExpiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn - 60);
+                existing.Scope = tokenResponse.Scope ?? "";
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _db.GraphTokens.Add(new GraphToken
+                {
+                    TenantId = graphTenantGuid,
+                    AccessToken = tokenResponse.AccessToken ?? "",
+                    RefreshToken = tokenResponse.RefreshToken ?? "",
+                    ExpiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn - 60),
+                    Scope = tokenResponse.Scope ?? ""
+                });
+            }
+            await _db.SaveChangesAsync();
+        }
+
         return Ok(new GraphAuthCallbackResponse(
             true,
-            "Graph OAuth erfolgreich abgeschlossen. Der naechste Schritt ist das sichere Persistieren und Nutzen des Tokens fuer Teams-Sync.",
+            "Graph OAuth erfolgreich abgeschlossen. Token wurde gespeichert.",
             tokenResponse.Scope ?? string.Join(' ', scopes),
             tokenResponse.ExpiresIn,
             tokenResponse.TokenType ?? "Bearer"
         ));
     }
 
+    [HttpGet("graph/token-status")]
+    public async Task<ActionResult<object>> GetGraphTokenStatus()
+    {
+        var token = await _db.GraphTokens
+            .Where(t => t.TenantId == TenantId)
+            .OrderByDescending(t => t.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        var hasValidToken = token != null && token.ExpiresAt > DateTime.UtcNow;
+        return Ok(new { hasValidToken, expiresAt = token?.ExpiresAt });
+    }
+
     private List<string> GetGraphScopes() =>
-        (_configuration["MicrosoftGraph:Scopes"] ?? "openid,profile,offline_access,User.Read,Team.ReadBasic.All,Channel.ReadBasic.All,OnlineMeetings.Read")
+        (_configuration["MicrosoftGraph:Scopes"] ?? "openid,profile,offline_access,User.Read,Team.ReadBasic.All,Channel.ReadBasic.All,OnlineMeetings.Read,OnlineMeetingTranscript.Read.All")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
 
-    private sealed record GraphTokenResponse(string? TokenType, int ExpiresIn, string? Scope);
+    private sealed record GraphTokenResponse(string? TokenType, int ExpiresIn, string? Scope, string? AccessToken, string? RefreshToken);
 }

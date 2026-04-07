@@ -62,6 +62,8 @@ public class Project : BaseEntity
     public ICollection<ActivityLog> Activities { get; set; } = new List<ActivityLog>();
     public ICollection<ResourceAllocation> TeamAssignments { get; set; } = new List<ResourceAllocation>();
     public ICollection<ProjectNote> Notes { get; set; } = new List<ProjectNote>();
+    public ICollection<ProjectContact> Contacts { get; set; } = new List<ProjectContact>();
+    public ICollection<ProjectMeeting> Meetings { get; set; } = new List<ProjectMeeting>();
     public ICollection<ProjectLeadTask> LeadTasks { get; set; } = new List<ProjectLeadTask>();
     public ICollection<ProjectMilestone> Milestones { get; set; } = new List<ProjectMilestone>();
     public ICollection<ProjectDecision> Decisions { get; set; } = new List<ProjectDecision>();
@@ -161,8 +163,26 @@ public class ProjectNote : BaseEntity
     public Guid AuthorId { get; set; }
     [Required, MaxLength(200)] public string Title { get; set; } = "";
     [Required] public string Content { get; set; } = "";
+    // general | meeting | status | decision
+    [MaxLength(30)] public string Category { get; set; } = "general";
+    public string Participants { get; set; } = ""; // comma-separated names
+    public DateOnly? MeetingDate { get; set; }
+    public bool IsPinned { get; set; } = false;
     public Project? Project { get; set; }
     public User? Author { get; set; }
+}
+
+public class ProjectContact : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    [Required, MaxLength(200)] public string Name { get; set; } = "";
+    [MaxLength(200)] public string Email { get; set; } = "";
+    [MaxLength(50)] public string Phone { get; set; } = "";
+    [MaxLength(200)] public string Company { get; set; } = "";
+    [MaxLength(100)] public string Role { get; set; } = ""; // z.B. Ansprechpartner Kunde
+    [MaxLength(200)] public string Supervisor { get; set; } = ""; // Vorgesetzter
+    public string Notes { get; set; } = "";
+    public Project? Project { get; set; }
 }
 
 public class ProjectLeadTask : BaseEntity
@@ -381,4 +401,33 @@ public class TimeEntryNotification : BaseEntity
 
     public Project? Project { get; set; }
     public User? SubmittedBy { get; set; }
+}
+
+public class ProjectMeeting : BaseEntity
+{
+    public Guid ProjectId { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    [Required, MaxLength(300)] public string Title { get; set; } = "";
+    public DateTime MeetingDate { get; set; }
+    public string Participants { get; set; } = "";
+    [MaxLength(500)] public string Location { get; set; } = "";
+    [MaxLength(500)] public string TeamsJoinUrl { get; set; } = "";
+    [MaxLength(300)] public string TeamsOnlineMeetingId { get; set; } = "";
+    public string TranscriptRaw { get; set; } = "";
+    [MaxLength(20)] public string TranscriptSource { get; set; } = "none"; // none | manual | graph
+    public DateTime? TranscriptFetchedAt { get; set; }
+    public string Notes { get; set; } = "";
+    [MaxLength(20)] public string ExtractionStatus { get; set; } = "none"; // none | pending | extracted
+
+    public Project? Project { get; set; }
+    public User? CreatedBy { get; set; }
+}
+
+public class GraphToken : BaseEntity
+{
+    public Guid TenantId { get; set; }
+    public string AccessToken { get; set; } = "";
+    public string RefreshToken { get; set; } = "";
+    public DateTime ExpiresAt { get; set; }
+    public string Scope { get; set; } = "";
 }

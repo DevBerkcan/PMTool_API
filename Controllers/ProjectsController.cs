@@ -99,6 +99,7 @@ public class ProjectsController : ControllerBase
             .Include(p => p.KnowledgeItems).ThenInclude(t => t.Author)
             .Include(p => p.TeamsLink)
             .Include(p => p.JiraLink)
+            .Include(p => p.Contacts)
             .FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
 
         return project == null ? NotFound() : Ok(MapProjectDetail(project));
@@ -436,7 +437,10 @@ public class ProjectsController : ControllerBase
             ProjectId = id,
             AuthorId = UserId,
             Title = req.Title,
-            Content = req.Content
+            Content = req.Content,
+            Category = req.Category ?? "general",
+            Participants = req.Participants ?? "",
+            MeetingDate = req.MeetingDate,
         };
 
         _db.ProjectNotes.Add(note);
@@ -446,6 +450,96 @@ public class ProjectsController : ControllerBase
         var author = await _db.Users.FindAsync(UserId);
         note.Author = author;
         return Ok(MapNote(note));
+    }
+
+    [HttpPut("{id}/notes/{noteId}")]
+    public async Task<ActionResult<ProjectNoteDto>> UpdateNote(Guid id, Guid noteId, [FromBody] UpdateProjectNoteRequest req)
+    {
+        var note = await _db.ProjectNotes.Include(n => n.Author)
+            .FirstOrDefaultAsync(n => n.Id == noteId && n.ProjectId == id);
+        if (note == null) return NotFound();
+
+        note.Title = req.Title;
+        note.Content = req.Content;
+        note.Category = req.Category ?? note.Category;
+        note.Participants = req.Participants ?? note.Participants;
+        note.MeetingDate = req.MeetingDate ?? note.MeetingDate;
+        if (req.IsPinned.HasValue) note.IsPinned = req.IsPinned.Value;
+        note.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(MapNote(note));
+    }
+
+    [HttpDelete("{id}/notes/{noteId}")]
+    public async Task<IActionResult> DeleteNote(Guid id, Guid noteId)
+    {
+        var note = await _db.ProjectNotes.FirstOrDefaultAsync(n => n.Id == noteId && n.ProjectId == id);
+        if (note == null) return NotFound();
+        _db.ProjectNotes.Remove(note);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ── Contacts ─────────────────────────────────────────────────────
+
+    [HttpGet("{id}/contacts")]
+    public async Task<ActionResult<List<ProjectContactDto>>> GetContacts(Guid id)
+    {
+        var contacts = await _db.ProjectContacts
+            .Where(c => c.ProjectId == id)
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+        return Ok(contacts.Select(MapContact));
+    }
+
+    [HttpPost("{id}/contacts")]
+    public async Task<ActionResult<ProjectContactDto>> AddContact(Guid id, [FromBody] UpsertProjectContactRequest req)
+    {
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == TenantId);
+        if (project == null) return NotFound();
+
+        var contact = new ProjectContact
+        {
+            ProjectId = id,
+            Name = req.Name,
+            Email = req.Email ?? "",
+            Phone = req.Phone ?? "",
+            Company = req.Company ?? "",
+            Role = req.Role ?? "",
+            Supervisor = req.Supervisor ?? "",
+            Notes = req.Notes ?? "",
+        };
+        _db.ProjectContacts.Add(contact);
+        await _db.SaveChangesAsync();
+        return Ok(MapContact(contact));
+    }
+
+    [HttpPut("{id}/contacts/{contactId}")]
+    public async Task<ActionResult<ProjectContactDto>> UpdateContact(Guid id, Guid contactId, [FromBody] UpsertProjectContactRequest req)
+    {
+        var contact = await _db.ProjectContacts.FirstOrDefaultAsync(c => c.Id == contactId && c.ProjectId == id);
+        if (contact == null) return NotFound();
+
+        contact.Name = req.Name;
+        contact.Email = req.Email ?? contact.Email;
+        contact.Phone = req.Phone ?? contact.Phone;
+        contact.Company = req.Company ?? contact.Company;
+        contact.Role = req.Role ?? contact.Role;
+        contact.Supervisor = req.Supervisor ?? contact.Supervisor;
+        contact.Notes = req.Notes ?? contact.Notes;
+        contact.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(MapContact(contact));
+    }
+
+    [HttpDelete("{id}/contacts/{contactId}")]
+    public async Task<IActionResult> DeleteContact(Guid id, Guid contactId)
+    {
+        var contact = await _db.ProjectContacts.FirstOrDefaultAsync(c => c.Id == contactId && c.ProjectId == id);
+        if (contact == null) return NotFound();
+        _db.ProjectContacts.Remove(contact);
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpGet("{id}/lead-tasks")]
@@ -1233,7 +1327,7 @@ public class ProjectsController : ControllerBase
         p.Owner?.DisplayName ?? "",
         p.CreatedAt,
         p.TeamAssignments.OrderBy(a => a.User!.DisplayName).Select(MapTeamMember).ToList(),
-        p.Notes.OrderByDescending(n => n.CreatedAt).Select(MapNote).ToList(),
+        p.Notes.OrderByDescending(n => n.IsPinned).ThenByDescending(n => n.CreatedAt).Select(MapNote).ToList(),
         p.LeadTasks.OrderBy(t => t.DueDate).Select(MapLeadTask).ToList(),
         p.Milestones.OrderBy(t => t.DueDate).Select(MapMilestone).ToList(),
         p.Decisions.OrderBy(t => t.DueDate).Select(MapDecision).ToList(),
@@ -1243,7 +1337,8 @@ public class ProjectsController : ControllerBase
         p.Approvals.OrderBy(t => t.DueDate).Select(MapApproval).ToList(),
         p.KnowledgeItems.OrderByDescending(t => t.Importance).ThenByDescending(t => t.CreatedAt).Select(MapKnowledgeItem).ToList(),
         p.TeamsLink == null ? null : MapTeamsLink(p.TeamsLink),
-        p.JiraLink == null ? null : MapJiraLink(p.JiraLink)
+        p.JiraLink == null ? null : MapJiraLink(p.JiraLink),
+        p.Contacts.OrderBy(c => c.Name).Select(MapContact).ToList()
     );
 
     private static ProjectTeamMemberDto MapTeamMember(ResourceAllocation allocation) => new(
@@ -1257,7 +1352,8 @@ public class ProjectsController : ControllerBase
         40
     );
 
-    private static ProjectNoteDto MapNote(ProjectNote note) => new(note.Id, note.Title, note.Content, note.Author?.DisplayName ?? "", note.CreatedAt);
+    private static ProjectNoteDto MapNote(ProjectNote note) => new(note.Id, note.Title, note.Content, note.Author?.DisplayName ?? "", note.CreatedAt, note.Category, note.Participants, note.MeetingDate, note.IsPinned);
+    private static ProjectContactDto MapContact(ProjectContact c) => new(c.Id, c.Name, c.Email, c.Phone, c.Company, c.Role, c.Supervisor, c.Notes);
     private static ProjectLeadTaskDto MapLeadTask(ProjectLeadTask task) => new(task.Id, task.Title, task.Description, task.Owner?.DisplayName ?? "", task.DueDate, task.Status);
     private static ProjectMilestoneDto MapMilestone(ProjectMilestone milestone) => new(milestone.Id, milestone.Title, milestone.Description, milestone.Owner?.DisplayName ?? "", milestone.DueDate, milestone.Status);
     private static ProjectDecisionDto MapDecision(ProjectDecision decision) => new(decision.Id, decision.Title, decision.Context, decision.Decision, decision.Owner?.DisplayName ?? "", decision.DueDate, decision.Status);
