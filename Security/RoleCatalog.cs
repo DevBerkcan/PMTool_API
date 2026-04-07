@@ -26,5 +26,7 @@ public static class RoleCatalog
         ["managePmo"] = RoleAccess.CanManagePmo(role),
         ["decideApproval"] = RoleAccess.CanDecideApproval(role),
         ["configureIntegrations"] = RoleAccess.CanConfigureIntegrations(role),
+        ["viewAllTimeEntries"] = RoleAccess.CanViewAllTimeEntries(role),
+        ["submitTimeEntry"] = RoleAccess.CanSubmitTimeEntry(role),
     };
 }

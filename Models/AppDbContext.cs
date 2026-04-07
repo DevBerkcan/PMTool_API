@@ -29,6 +29,8 @@ public class AppDbContext : DbContext
     public DbSet<AiSuggestionFeedback> AiSuggestionFeedback => Set<AiSuggestionFeedback>();
     public DbSet<ProjectTeamsLink> ProjectTeamsLinks => Set<ProjectTeamsLink>();
     public DbSet<ProjectJiraLink> ProjectJiraLinks => Set<ProjectJiraLink>();
+    public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
+    public DbSet<TimeEntryNotification> TimeEntryNotifications => Set<TimeEntryNotification>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -81,6 +83,15 @@ public class AppDbContext : DbContext
         mb.Entity<ProjectForecastSnapshot>().HasIndex(t => new { t.ProjectId, t.SnapshotDate }).IsUnique();
         mb.Entity<ProjectTeamsLink>().HasIndex(t => t.ProjectId).IsUnique();
         mb.Entity<ProjectJiraLink>().HasIndex(t => t.ProjectId).IsUnique();
+
+        mb.Entity<TimeEntry>().HasOne(t => t.Project).WithMany().HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<TimeEntry>().HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<TimeEntry>().HasOne(t => t.Tenant).WithMany().HasForeignKey(t => t.TenantId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<TimeEntry>().HasIndex(t => new { t.TenantId, t.ProjectId, t.UserId, t.Year, t.Month, t.Day }).IsUnique();
+
+        mb.Entity<TimeEntryNotification>().HasOne(t => t.Project).WithMany().HasForeignKey(t => t.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<TimeEntryNotification>().HasOne(t => t.SubmittedBy).WithMany().HasForeignKey(t => t.SubmittedByUserId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<TimeEntryNotification>().HasIndex(t => new { t.TenantId, t.ForUserId, t.IsRead });
 
         var tenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var ownerId = Guid.Parse("22222222-2222-2222-2222-222222222222");

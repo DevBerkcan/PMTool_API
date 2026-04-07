@@ -129,6 +129,131 @@ public class ReportsController : ControllerBase
         return File(BuildSimplePdf(lines), "application/pdf", $"{project.Name}-forecast.pdf");
     }
 
+    // ──────────────────────────────────────────────────────────────────
+    // GET /api/v1/reports/time-entries.csv?projectId=&year=&month=
+    // GET /api/v1/reports/time-entries.csv?year=&month=  (alle Projekte)
+    // ──────────────────────────────────────────────────────────────────
+    [HttpGet("time-entries.csv")]
+    public async Task<IActionResult> ExportTimeEntriesCsv(
+        [FromQuery] Guid? projectId = null,
+        [FromQuery] int? year = null,
+        [FromQuery] int? month = null)
+    {
+        if (!RoleAccess.CanManagePmo(CurrentRole)) return Forbid();
+
+        var query = _db.TimeEntries
+            .Where(t => t.TenantId == TenantId)
+            .Include(t => t.User)
+            .Include(t => t.Project)
+            .AsQueryable();
+
+        if (projectId.HasValue) query = query.Where(t => t.ProjectId == projectId.Value);
+        if (year.HasValue)  query = query.Where(t => t.Year == year.Value);
+        if (month.HasValue) query = query.Where(t => t.Month == month.Value);
+
+        var entries = await query
+            .OrderBy(t => t.Project!.Name)
+            .ThenBy(t => t.User!.DisplayName)
+            .ThenBy(t => t.Year).ThenBy(t => t.Month).ThenBy(t => t.Day)
+            .ToListAsync();
+
+        var csv = new StringBuilder();
+        csv.AppendLine("Projekt,Mitarbeiter,E-Mail,Jahr,Monat,Tag,Wochentag,Geleistet,Fakturiert,Leistungsart,Kommentar,Status,Eingereicht am");
+
+        foreach (var e in entries)
+        {
+            var date = new DateTime(e.Year, e.Month, e.Day);
+            var weekday = date.DayOfWeek switch
+            {
+                DayOfWeek.Monday => "Mo", DayOfWeek.Tuesday => "Di",
+                DayOfWeek.Wednesday => "Mi", DayOfWeek.Thursday => "Do",
+                DayOfWeek.Friday => "Fr", DayOfWeek.Saturday => "Sa",
+                DayOfWeek.Sunday => "So", _ => ""
+            };
+            csv.AppendLine(string.Join(",", new[]
+            {
+                Csv(e.Project?.Name ?? ""),
+                Csv(e.User?.DisplayName ?? ""),
+                Csv(e.User?.Email ?? ""),
+                Csv(e.Year.ToString()),
+                Csv(e.Month.ToString("D2")),
+                Csv(e.Day.ToString("D2")),
+                Csv(weekday),
+                Csv(e.GeleistetHours.ToString("0.##")),
+                Csv(e.FakturiertHours.ToString("0.##")),
+                Csv(e.ServiceType),
+                Csv(e.Comment),
+                Csv(e.Status == "submitted" ? "Eingereicht" : "Entwurf"),
+                Csv(e.SubmittedAt.HasValue ? e.SubmittedAt.Value.ToString("dd.MM.yyyy HH:mm") : ""),
+            }));
+        }
+
+        var filename = projectId.HasValue
+            ? $"zeiten-{entries.FirstOrDefault()?.Project?.Name ?? "projekt"}-{year ?? 0}-{(month ?? 0):D2}.csv"
+            : $"zeiten-alle-{year ?? 0}-{(month ?? 0):D2}.csv";
+
+        return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(),
+            "text/csv; charset=utf-8", filename);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // GET /api/v1/reports/time-entries.pdf?projectId=&year=&month=
+    // ──────────────────────────────────────────────────────────────────
+    [HttpGet("time-entries.pdf")]
+    public async Task<IActionResult> ExportTimeEntriesPdf(
+        [FromQuery] Guid? projectId = null,
+        [FromQuery] int? year = null,
+        [FromQuery] int? month = null)
+    {
+        if (!RoleAccess.CanManagePmo(CurrentRole)) return Forbid();
+
+        var query = _db.TimeEntries
+            .Where(t => t.TenantId == TenantId)
+            .Include(t => t.User)
+            .Include(t => t.Project)
+            .AsQueryable();
+
+        if (projectId.HasValue) query = query.Where(t => t.ProjectId == projectId.Value);
+        if (year.HasValue)  query = query.Where(t => t.Year == year.Value);
+        if (month.HasValue) query = query.Where(t => t.Month == month.Value);
+
+        var entries = await query
+            .OrderBy(t => t.Project!.Name)
+            .ThenBy(t => t.User!.DisplayName)
+            .ThenBy(t => t.Year).ThenBy(t => t.Month).ThenBy(t => t.Day)
+            .ToListAsync();
+
+        var monthNames = new[] { "", "Januar", "Februar", "Maerz", "April", "Mai", "Juni",
+            "Juli", "August", "September", "Oktober", "November", "Dezember" };
+        var periodLabel = (year.HasValue && month.HasValue)
+            ? $"{monthNames[month.Value]} {year.Value}"
+            : (year.HasValue ? year.Value.ToString() : "Alle Perioden");
+
+        var projectName = projectId.HasValue
+            ? (entries.FirstOrDefault()?.Project?.Name ?? "Projekt")
+            : "Alle Projekte";
+
+        var lines = new List<string> { $"Zeiterfassung - {projectName}", $"Periode: {periodLabel}", "" };
+
+        var grouped = entries.GroupBy(e => new { e.ProjectId, e.UserId });
+        foreach (var group in grouped)
+        {
+            var first = group.First();
+            lines.Add($"Projekt: {first.Project?.Name}  |  Mitarbeiter: {first.User?.DisplayName}");
+            lines.Add($"  Geleistet gesamt: {group.Sum(e => e.GeleistetHours):0.##}h  |  Fakturiert gesamt: {group.Sum(e => e.FakturiertHours):0.##}h");
+            foreach (var e in group.OrderBy(e => e.Day))
+                if (e.GeleistetHours > 0 || e.FakturiertHours > 0)
+                    lines.Add($"  Tag {e.Day:D2}: {e.GeleistetHours:0.##}h geleistet / {e.FakturiertHours:0.##}h fakturiert  {e.Comment}");
+            lines.Add("");
+        }
+
+        if (!lines.Any(l => l.StartsWith("Projekt:")))
+            lines.Add("Keine Zeiteintraege fuer diesen Zeitraum.");
+
+        var filename = $"zeiten-{projectName.Replace(" ", "-")}-{year ?? 0}-{(month ?? 0):D2}.pdf";
+        return File(BuildSimplePdf(lines), "application/pdf", filename);
+    }
+
     private IQueryable<AuditEntry> BuildAuditQuery(string? entityType, Guid? projectId, string? userRole, string? changeType, DateTime? dateFrom, DateTime? dateTo)
     {
         var query = _db.AuditEntries

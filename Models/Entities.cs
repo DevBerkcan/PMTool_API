@@ -346,3 +346,39 @@ public class ProjectJiraLink : BaseEntity
     public DateTime? LastSyncAt { get; set; }
     public Project? Project { get; set; }
 }
+
+public class TimeEntry : BaseEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid ProjectId { get; set; }
+    public Guid UserId { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public int Day { get; set; }
+    public decimal GeleistetHours { get; set; }
+    public decimal FakturiertHours { get; set; }
+    public string Comment { get; set; } = "";
+    [MaxLength(100)] public string ServiceType { get; set; } = "";
+    [MaxLength(20)] public string Status { get; set; } = "draft"; // draft | submitted
+    public DateTime? SubmittedAt { get; set; }
+
+    public Project? Project { get; set; }
+    public User? User { get; set; }
+    public Tenant? Tenant { get; set; }
+}
+
+public class TimeEntryNotification : BaseEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid ForUserId { get; set; }    // Projektleiter who should see it
+    public Guid SubmittedByUserId { get; set; }
+    public Guid ProjectId { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public string Message { get; set; } = "";
+    public bool IsRead { get; set; } = false;
+    public DateTime? ReadAt { get; set; }
+
+    public Project? Project { get; set; }
+    public User? SubmittedBy { get; set; }
+}

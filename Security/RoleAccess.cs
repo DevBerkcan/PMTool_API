@@ -8,6 +8,8 @@ public static class RoleAccess
     public static bool CanManagePmo(string? role) => HasAnyRole(role, "admin", "management", "projektleiter", "pmo");
     public static bool CanDecideApproval(string? role) => HasAnyRole(role, "admin", "management", "pmo");
     public static bool CanConfigureIntegrations(string? role) => HasAnyRole(role, "admin", "management", "projektleiter", "pmo");
+    public static bool CanViewAllTimeEntries(string? role) => HasAnyRole(role, "admin", "management", "projektleiter", "pmo");
+    public static bool CanSubmitTimeEntry(string? role) => true; // all authenticated users
 
     private static bool HasAnyRole(string? role, params string[] allowedRoles)
     {
