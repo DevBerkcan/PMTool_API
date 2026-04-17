@@ -431,3 +431,73 @@ public class GraphToken : BaseEntity
     public DateTime ExpiresAt { get; set; }
     public string Scope { get; set; } = "";
 }
+
+/// <summary>
+/// Stores vector embeddings for semantic search and RAG.
+/// EmbeddingJson stores float[] as JSON; compatible with SQLite/SQL Server/PostgreSQL.
+/// Migrate to pgvector VECTOR column for production-scale semantic search.
+/// </summary>
+public class EmbeddingVector : BaseEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid ProjectId { get; set; }
+    // knowledge | task | risk | decision | note | meeting | retro
+    [MaxLength(50)] public string EntityType { get; set; } = "";
+    public Guid EntityId { get; set; }
+    // The text that was embedded (for context/debugging)
+    public string EmbeddedText { get; set; } = "";
+    // JSON-serialized float[1536] — swap with pgvector VECTOR(1536) in production
+    public string EmbeddingJson { get; set; } = "[]";
+    // Cross-project institutional memory flag (completed project retros)
+    public bool IsInstitutionalMemory { get; set; } = false;
+    public int Importance { get; set; } = 3;
+    public Project? Project { get; set; }
+}
+
+/// <summary>
+/// Tracks Microsoft Graph change notification subscriptions for auto transcript processing.
+/// </summary>
+public class GraphWebhookSubscription : BaseEntity
+{
+    public Guid TenantId { get; set; }
+    [MaxLength(200)] public string SubscriptionId { get; set; } = "";
+    [MaxLength(200)] public string Resource { get; set; } = "";
+    [MaxLength(50)] public string ChangeType { get; set; } = "created";
+    public DateTime ExpirationDateTime { get; set; }
+    [MaxLength(20)] public string Status { get; set; } = "active"; // active | expired | failed
+    public DateTime? LastRenewedAt { get; set; }
+}
+
+/// <summary>
+/// Stores AI-generated project retrospective summaries for cross-project learning (Institutional Memory).
+/// </summary>
+public class ProjectRetroSummary : BaseEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid ProjectId { get; set; }
+    public string Summary { get; set; } = "";
+    public string LessonsLearned { get; set; } = "";
+    public string SuccessFactors { get; set; } = "";
+    public string RiskPatterns { get; set; } = "";
+    [MaxLength(50)] public string ProjectCategory { get; set; } = "";
+    [MaxLength(50)] public string ProjectStage { get; set; } = "";
+    public int DurationDays { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal BudgetVariancePercent { get; set; }
+    public bool WasDelayed { get; set; }
+    public Project? Project { get; set; }
+}
+
+/// <summary>
+/// Stores AI chat conversation history for context-aware multi-turn conversations.
+/// </summary>
+public class AiConversation : BaseEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+    public Guid? ProjectId { get; set; }
+    [MaxLength(20)] public string Role { get; set; } = "user"; // user | assistant
+    public string Content { get; set; } = "";
+    [MaxLength(50)] public string ConversationId { get; set; } = "";
+    public User? User { get; set; }
+    public Project? Project { get; set; }
+}

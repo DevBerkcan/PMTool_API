@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using PmTool.Api.Hubs;
 using PmTool.Api.Models;
+using PmTool.Api.Services;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
@@ -13,13 +16,19 @@ public class MeetingsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AnthropicService _ai;
+    private readonly EmbeddingService _embed;
+    private readonly IHubContext<PmHub> _hub;
     private Guid TenantId => Guid.Parse(User.FindFirstValue("tenantId")!);
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    public MeetingsController(AppDbContext db, IHttpClientFactory httpClientFactory)
+    public MeetingsController(AppDbContext db, IHttpClientFactory httpClientFactory, AnthropicService ai, EmbeddingService embed, IHubContext<PmHub> hub)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
+        _ai = ai;
+        _embed = embed;
+        _hub = hub;
     }
 
     // GET /api/v1/projects/{projectId}/meetings
@@ -219,88 +228,121 @@ public class MeetingsController : ControllerBase
             .FirstOrDefaultAsync(m => m.Id == meetingId && m.ProjectId == projectId);
         if (meeting == null) return NotFound();
 
-        var projectBelongsToTenant = await _db.Projects.AnyAsync(p => p.Id == projectId && p.TenantId == TenantId);
-        if (!projectBelongsToTenant) return NotFound();
+        var project = await _db.Projects
+            .Include(p => p.TeamAssignments).ThenInclude(r => r.User)
+            .FirstOrDefaultAsync(p => p.Id == projectId && p.TenantId == TenantId);
+        if (project == null) return NotFound();
 
         if (string.IsNullOrWhiteSpace(meeting.TranscriptRaw))
-        {
             return BadRequest("Kein Transkript vorhanden. Bitte zuerst ein Transkript hinzufügen.");
-        }
 
         meeting.ExtractionStatus = "pending";
         await _db.SaveChangesAsync();
 
-        var extracted = ExtractMeeting(meeting.Title, meeting.TranscriptRaw);
+        MeetingExtractionResult extracted;
 
+        if (_ai.IsConfigured)
+        {
+            var teamNames = project.TeamAssignments.Select(r => r.User?.DisplayName ?? "").Where(n => n.Length > 0).ToList();
+            var transcriptPreview = meeting.TranscriptRaw.Length > 12000 ? meeting.TranscriptRaw[..12000] : meeting.TranscriptRaw;
+
+            var systemPrompt = $$"""
+                You are an expert meeting analyst for the project management tool RealCore PM.
+                Analyze the meeting transcript and extract structured information.
+                Project: {{project.Name}}
+                Known team members: {{string.Join(", ", teamNames)}}
+                Meeting: {{meeting.Title}} on {{meeting.MeetingDate:yyyy-MM-dd}}
+
+                Return ONLY a JSON object with this exact structure:
+                {
+                  "tasks": [
+                    {"title": "...", "description": "...", "assigneeName": "...", "priority": "high|medium|low", "dueDaysFromNow": 7}
+                  ],
+                  "decisions": [
+                    {"title": "...", "context": "...", "ownerName": "...", "dueDaysFromNow": 5}
+                  ],
+                  "risks": [
+                    {"title": "...", "description": "...", "ownerName": "...", "impact": 3, "probability": 3}
+                  ],
+                  "knowledge": [
+                    {"title": "...", "content": "...", "category": "meeting", "importance": 4}
+                  ],
+                  "summary": "Brief 2-3 sentence summary of the meeting",
+                  "sentiment": "positive|neutral|concerning",
+                  "confidence": 0.85
+                }
+                Extract only what is clearly present. Do not invent items.
+                Use the same language as the transcript (German or English).
+                """;
+
+            extracted = await _ai.ExtractStructuredAsync<MeetingExtractionResult>(systemPrompt, transcriptPreview, 3000)
+                ?? FallbackExtract(meeting.Title, meeting.TranscriptRaw);
+        }
+        else
+        {
+            extracted = FallbackExtract(meeting.Title, meeting.TranscriptRaw);
+        }
+
+        // Create entities
         var note = new ProjectNote
         {
-            ProjectId = projectId,
-            AuthorId = UserId,
+            ProjectId = projectId, AuthorId = UserId,
             Title = $"Meeting: {meeting.Title}",
             Content = extracted.Summary,
-            Category = "meeting",
-            Participants = meeting.Participants,
+            Category = "meeting", Participants = meeting.Participants,
             MeetingDate = DateOnly.FromDateTime(meeting.MeetingDate)
         };
         _db.ProjectNotes.Add(note);
 
-        foreach (var action in extracted.Actions)
+        var createdTaskIds = new List<Guid>();
+        foreach (var t in extracted.Tasks)
         {
-            _db.Tasks.Add(new ProjectTask
+            var assigneeId = ResolveAssignee(project, t.AssigneeName) ?? UserId;
+            var task = new ProjectTask
             {
-                ProjectId = projectId,
-                Title = action.Title,
-                Description = action.Detail,
-                Status = "todo",
-                Priority = "medium",
-                AssigneeId = UserId,
-                DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+                ProjectId = projectId, Title = t.Title, Description = t.Description,
+                Status = "todo", Priority = t.Priority, AssigneeId = assigneeId,
+                DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(t.DueDaysFromNow)),
                 EstimatedHours = 4
-            });
+            };
+            _db.Tasks.Add(task);
+            createdTaskIds.Add(task.Id);
         }
 
-        foreach (var decision in extracted.Decisions)
+        foreach (var d in extracted.Decisions)
         {
+            var ownerId = ResolveAssignee(project, d.OwnerName) ?? UserId;
             _db.ProjectDecisions.Add(new ProjectDecision
             {
-                ProjectId = projectId,
-                OwnerId = UserId,
-                Title = decision.Title,
-                Context = decision.Detail,
-                Decision = "Aus Meeting erkannt, noch zu finalisieren.",
-                DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)),
-                Status = "open"
+                ProjectId = projectId, OwnerId = ownerId, Title = d.Title, Context = d.Context,
+                Decision = "Aus Meeting-KI erkannt, noch zu finalisieren.",
+                DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(d.DueDaysFromNow)), Status = "open"
             });
         }
 
-        foreach (var risk in extracted.Risks)
+        foreach (var r in extracted.Risks)
         {
+            var ownerId = ResolveAssignee(project, r.OwnerName) ?? UserId;
             _db.Risks.Add(new Risk
             {
-                ProjectId = projectId,
-                OwnerId = UserId,
-                Title = risk.Title,
-                Description = risk.Detail,
-                Impact = 4,
-                Probability = 3,
-                Status = "open",
+                ProjectId = projectId, OwnerId = ownerId, Title = r.Title, Description = r.Description,
+                Impact = r.Impact, Probability = r.Probability, Status = "open",
                 Mitigation = "Im Folgemeeting bewerten und Massnahme festlegen."
             });
         }
 
-        foreach (var item in extracted.Knowledge)
+        var knowledgeIds = new List<Guid>();
+        foreach (var k in extracted.Knowledge)
         {
-            _db.ProjectKnowledgeItems.Add(new ProjectKnowledgeItem
+            var ki = new ProjectKnowledgeItem
             {
-                ProjectId = projectId,
-                AuthorId = UserId,
-                Title = item.Title,
-                SourceType = "meeting",
-                SourceLabel = meeting.Title,
-                Content = item.Detail,
-                TagsCsv = "teams|meeting|knowledge",
-                Importance = 4
-            });
+                ProjectId = projectId, AuthorId = UserId, Title = k.Title,
+                SourceType = "meeting", SourceLabel = meeting.Title,
+                Content = k.Content, Category = k.Category,
+                TagsCsv = "teams|meeting|ki-extraktion", Importance = k.Importance
+            };
+            _db.ProjectKnowledgeItems.Add(ki);
+            knowledgeIds.Add(ki.Id);
         }
 
         meeting.ExtractionStatus = "extracted";
@@ -308,108 +350,99 @@ public class MeetingsController : ControllerBase
 
         _db.ActivityLogs.Add(new ActivityLog
         {
-            TenantId = TenantId,
-            UserId = UserId,
-            ProjectId = projectId,
-            EntityId = meeting.Id,
-            EntityType = "Meeting",
-            Action = $"hat Meeting-Transkript analysiert: {meeting.Title}"
+            TenantId = TenantId, UserId = UserId, ProjectId = projectId,
+            EntityId = meeting.Id, EntityType = "Meeting",
+            Action = $"hat Meeting-Transkript analysiert (KI): {meeting.Title} — {extracted.Tasks.Count} Tasks, {extracted.Decisions.Count} Entscheidungen"
         });
 
         await _db.SaveChangesAsync();
 
-        return Ok(new MeetingCommitResponse(
+        // Embed knowledge items and meeting summary asynchronously
+        _ = Task.Run(async () =>
+        {
+            foreach (var id in knowledgeIds)
+            {
+                var ki = await _db.ProjectKnowledgeItems.FindAsync(id);
+                if (ki != null)
+                    await _embed.StoreEmbeddingAsync(TenantId, projectId, "knowledge", id, $"{ki.Title}\n{ki.Content}", ki.Importance);
+            }
+            await _embed.StoreEmbeddingAsync(TenantId, projectId, "meeting", meeting.Id, $"{meeting.Title}\n{extracted.Summary}");
+        });
+
+        // SignalR notification
+        await _hub.Clients.Group(TenantId.ToString()).SendAsync("MeetingExtracted", new
+        {
             projectId,
-            meeting.Title,
-            extracted.Actions.Count,
-            extracted.Decisions.Count,
-            extracted.Risks.Count,
-            extracted.Knowledge.Count,
-            $"Meeting '{meeting.Title}' verarbeitet: {extracted.Actions.Count} Tasks, {extracted.Decisions.Count} Entscheidungen, {extracted.Risks.Count} Risiken, {extracted.Knowledge.Count} Knowledge-Items."
+            meetingId = meeting.Id,
+            meetingTitle = meeting.Title,
+            tasksCreated = extracted.Tasks.Count,
+            decisionsCreated = extracted.Decisions.Count,
+            risksCreated = extracted.Risks.Count,
+            sentiment = extracted.Sentiment,
+            confidence = extracted.Confidence
+        });
+
+        return Ok(new MeetingCommitResponse(
+            projectId, meeting.Title,
+            extracted.Tasks.Count, extracted.Decisions.Count, extracted.Risks.Count, extracted.Knowledge.Count,
+            $"Meeting '{meeting.Title}' verarbeitet: {extracted.Tasks.Count} Tasks, {extracted.Decisions.Count} Entscheidungen, {extracted.Risks.Count} Risiken, {extracted.Knowledge.Count} Knowledge-Items. Sentiment: {extracted.Sentiment}."
         ));
     }
 
-    private static ProjectMeetingDto MapMeeting(ProjectMeeting m) => new(
-        m.Id,
-        m.Title,
-        m.MeetingDate,
-        m.Participants,
-        m.Location,
-        m.TeamsJoinUrl,
-        m.TeamsOnlineMeetingId,
-        m.TranscriptSource,
-        m.TranscriptFetchedAt,
-        m.ExtractionStatus,
-        m.Notes,
-        m.CreatedBy?.DisplayName ?? "",
-        m.CreatedAt,
-        !string.IsNullOrWhiteSpace(m.TranscriptRaw)
-    );
-
-    private static (string Summary, List<MeetingExtractedItemDto> Actions, List<MeetingExtractedItemDto> Decisions, List<MeetingExtractedItemDto> Risks, List<MeetingExtractedItemDto> Knowledge) ExtractMeeting(string title, string content)
+    private static Guid? ResolveAssignee(Project project, string name)
     {
-        var actions = new List<MeetingExtractedItemDto>();
-        var decisions = new List<MeetingExtractedItemDto>();
-        var risks = new List<MeetingExtractedItemDto>();
-        var knowledge = new List<MeetingExtractedItemDto>();
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        return project.TeamAssignments
+            .FirstOrDefault(r => r.User?.DisplayName?.Contains(name, StringComparison.OrdinalIgnoreCase) == true)
+            ?.UserId;
+    }
 
-        var lines = content
-            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(line => !string.IsNullOrWhiteSpace(line))
-            .ToList();
+    private static MeetingExtractionResult FallbackExtract(string title, string content)
+    {
+        var actions = new List<ExtractedTask>();
+        var decisions = new List<ExtractedDecision>();
+        var risks = new List<ExtractedRisk>();
+        var knowledge = new List<ExtractedKnowledge>();
+
+        var lines = content.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
 
         foreach (var line in lines)
         {
             var normalized = line.Trim().TrimStart('-', '*', '•').Trim();
-
-            if (TryExtract(normalized, "todo:", out var todoValue) || TryExtract(normalized, "action:", out todoValue) || normalized.Contains("naechster schritt", StringComparison.OrdinalIgnoreCase))
-            {
-                actions.Add(new MeetingExtractedItemDto("task", ShortTitle(todoValue, "Follow-up aus Meeting"), todoValue));
-                continue;
-            }
-
-            if (TryExtract(normalized, "decision:", out var decisionValue) || TryExtract(normalized, "beschluss:", out decisionValue))
-            {
-                decisions.Add(new MeetingExtractedItemDto("decision", ShortTitle(decisionValue, "Entscheidung aus Meeting"), decisionValue));
-                continue;
-            }
-
-            if (TryExtract(normalized, "risk:", out var riskValue) || normalized.Contains("risiko", StringComparison.OrdinalIgnoreCase) || normalized.Contains("blocker", StringComparison.OrdinalIgnoreCase))
-            {
-                risks.Add(new MeetingExtractedItemDto("risk", ShortTitle(riskValue, "Risiko aus Meeting"), riskValue));
-                continue;
-            }
-
-            if (TryExtract(normalized, "info:", out var infoValue) || TryExtract(normalized, "note:", out infoValue) || normalized.Contains("erkenntnis", StringComparison.OrdinalIgnoreCase))
-            {
-                knowledge.Add(new MeetingExtractedItemDto("knowledge", ShortTitle(infoValue, "Erkenntnis aus Meeting"), infoValue));
-            }
+            if (TryExtract(normalized, "todo:", out var todoVal) || TryExtract(normalized, "action:", out todoVal))
+                actions.Add(new ExtractedTask { Title = ShortTitle(todoVal), Description = todoVal });
+            else if (TryExtract(normalized, "decision:", out var decVal) || TryExtract(normalized, "beschluss:", out decVal))
+                decisions.Add(new ExtractedDecision { Title = ShortTitle(decVal), Context = decVal });
+            else if (TryExtract(normalized, "risk:", out var riskVal) || normalized.Contains("risiko", StringComparison.OrdinalIgnoreCase))
+                risks.Add(new ExtractedRisk { Title = ShortTitle(riskVal), Description = riskVal });
         }
 
         if (knowledge.Count == 0 && lines.Count > 0)
-        {
-            knowledge.Add(new MeetingExtractedItemDto("knowledge", $"Zusammenfassung {title}", string.Join(" ", lines.Take(3))));
-        }
+            knowledge.Add(new ExtractedKnowledge { Title = $"Zusammenfassung {title}", Content = string.Join(" ", lines.Take(3)) });
 
-        var summary = $"Meeting '{title}' analysiert: {actions.Count} Tasks, {decisions.Count} Entscheidungen, {risks.Count} Risiken, {knowledge.Count} Knowledge-Items erkannt.";
-        return (summary, actions, decisions, risks, knowledge);
+        return new MeetingExtractionResult
+        {
+            Tasks = actions, Decisions = decisions, Risks = risks, Knowledge = knowledge,
+            Summary = $"Meeting '{title}': {actions.Count} Tasks, {decisions.Count} Entscheidungen, {risks.Count} Risiken erkannt.",
+            Sentiment = "neutral", Confidence = 0.6f
+        };
     }
 
     private static bool TryExtract(string line, string prefix, out string value)
     {
         if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-        {
-            value = line[prefix.Length..].Trim();
-            return true;
-        }
-        value = line;
-        return false;
+        { value = line[prefix.Length..].Trim(); return true; }
+        value = line; return false;
     }
 
-    private static string ShortTitle(string value, string fallback)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return fallback;
-        var clean = value.Trim();
-        return clean.Length <= 80 ? clean : clean[..80].TrimEnd() + "...";
-    }
+    private static string ShortTitle(string v) => string.IsNullOrWhiteSpace(v) ? "Item" : v.Length <= 80 ? v.Trim() : v.Trim()[..80] + "...";
+
+    private static ProjectMeetingDto MapMeeting(ProjectMeeting m) => new(
+        m.Id, m.Title, m.MeetingDate, m.Participants, m.Location,
+        m.TeamsJoinUrl, m.TeamsOnlineMeetingId, m.TranscriptSource,
+        m.TranscriptFetchedAt, m.ExtractionStatus, m.Notes,
+        m.CreatedBy?.DisplayName ?? "", m.CreatedAt,
+        !string.IsNullOrWhiteSpace(m.TranscriptRaw)
+    );
 }

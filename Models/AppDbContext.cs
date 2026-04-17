@@ -34,6 +34,10 @@ public class AppDbContext : DbContext
     public DbSet<ProjectContact> ProjectContacts => Set<ProjectContact>();
     public DbSet<ProjectMeeting> ProjectMeetings => Set<ProjectMeeting>();
     public DbSet<GraphToken> GraphTokens => Set<GraphToken>();
+    public DbSet<EmbeddingVector> EmbeddingVectors => Set<EmbeddingVector>();
+    public DbSet<GraphWebhookSubscription> GraphWebhookSubscriptions => Set<GraphWebhookSubscription>();
+    public DbSet<ProjectRetroSummary> ProjectRetroSummaries => Set<ProjectRetroSummary>();
+    public DbSet<AiConversation> AiConversations => Set<AiConversation>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -103,6 +107,23 @@ public class AppDbContext : DbContext
         mb.Entity<ProjectMeeting>().HasOne(m => m.CreatedBy).WithMany().HasForeignKey(m => m.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
         mb.Entity<ProjectMeeting>().HasIndex(m => m.ProjectId);
         mb.Entity<GraphToken>().HasIndex(t => t.TenantId);
+
+        // AI / Vector / Webhook entities
+        mb.Entity<EmbeddingVector>().HasOne(e => e.Project).WithMany().HasForeignKey(e => e.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<EmbeddingVector>().HasIndex(e => new { e.TenantId, e.ProjectId, e.EntityType });
+        mb.Entity<EmbeddingVector>().HasIndex(e => new { e.EntityType, e.EntityId });
+        mb.Entity<EmbeddingVector>().HasIndex(e => e.IsInstitutionalMemory);
+
+        mb.Entity<GraphWebhookSubscription>().HasIndex(s => s.TenantId);
+        mb.Entity<GraphWebhookSubscription>().HasIndex(s => s.SubscriptionId).IsUnique();
+        mb.Entity<GraphWebhookSubscription>().HasIndex(s => s.Status);
+
+        mb.Entity<ProjectRetroSummary>().HasOne(r => r.Project).WithMany().HasForeignKey(r => r.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<ProjectRetroSummary>().HasIndex(r => new { r.TenantId, r.ProjectCategory });
+
+        mb.Entity<AiConversation>().HasOne(c => c.User).WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Restrict);
+        mb.Entity<AiConversation>().HasOne(c => c.Project).WithMany().HasForeignKey(c => c.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<AiConversation>().HasIndex(c => new { c.TenantId, c.UserId, c.ConversationId });
 
         var tenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var ownerId = Guid.Parse("22222222-2222-2222-2222-222222222222");

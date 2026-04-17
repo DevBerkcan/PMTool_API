@@ -147,8 +147,8 @@ public record GovernanceOverviewDto(List<GovernanceOverviewProjectDto> Projects,
 public record PortfolioEscalationItemDto(Guid ProjectId, string ProjectName, string Severity, string Category, string Title, string Detail, string Metric, string RecommendedAction);
 public record PortfolioEscalationOverviewDto(int TotalItems, int CriticalItems, int WarningItems, int BudgetWarnings, int CapacityWarnings, List<PortfolioEscalationItemDto> Items);
 
-public record AiChatRequest(string Message, Guid? ProjectId);
-public record AiChatResponse(string Reply);
+public record AiChatRequest(string Message, Guid? ProjectId, string? ConversationId = null);
+public record AiChatResponse(string Reply, string ConversationId, List<AiAnswerSourceDto> Sources);
 public record ProjectAiQuestionRequest(Guid ProjectId, string Question);
 public record AiAnswerSourceDto(string Type, string Title, string Detail, int RelevanceScore);
 public record ProjectAiAnswerDto(Guid ProjectId, string ProjectName, string Question, string Answer, string Confidence, List<AiAnswerSourceDto> Sources, List<string> SuggestedActions);
@@ -185,3 +185,27 @@ public record JiraIntegrationStatusDto(bool IsConfigured, string BaseUrl, string
 public record JiraTicketDto(string Key, string Summary, string Status, string StatusCategory, string Priority, string IssueType, string AssigneeName, string AssigneeEmail, string Url, DateTime? UpdatedAt, DateOnly? DueDate);
 public record JiraAssigneeTicketsDto(string AssigneeName, string AssigneeEmail, int TotalTickets, int TodoTickets, int InProgressTickets, int DoneTickets, List<JiraTicketDto> Tickets);
 public record JiraProjectTicketsDto(Guid ProjectId, string ProjectName, string BoardName, string ProjectKey, string Jql, int TotalTickets, int UnassignedTickets, List<JiraAssigneeTicketsDto> Assignees, List<JiraTicketDto> Tickets);
+
+// AI extended DTOs
+public record GraphWebhookNotification(string SubscriptionId, string ChangeType, string Resource, string TenantId, DateTime SubscriptionExpirationDateTime, string ClientState);
+public record GraphWebhookValidationResponse(string ValidationToken);
+public record WebhookProcessResult(bool Success, string? ProjectName, int TasksCreated, int DecisionsCreated, int RisksCreated, string? Error);
+public record PortfolioSummaryDto(List<ProjectDto> Projects, int TotalProjects, int GreenCount, int YellowCount, int RedCount);
+
+// ─── Command System DTOs ──────────────────────────────────────────────────────
+public record CommandRequest(string Input, Guid? ProjectId = null);
+public record CommandResult(
+    string Command, string Args, string Title, string Summary,
+    string Severity,
+    List<CommandSection> Sections,
+    List<CommandAction> SuggestedActions,
+    string GeneratedAt);
+public record CommandSection(string Title, string Icon, string Severity, List<CommandItem> Items);
+public record CommandItem(
+    string Title, string? Detail, string? ProjectName,
+    string? AssigneeName, string? DueDate, string? Status,
+    string? Priority, string? Score, string Severity,
+    List<CommandAction> Actions);
+public record CommandAction(
+    string Label, string ActionType,
+    string? EntityId, string? ProjectId, string? Payload);

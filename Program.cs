@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using PmTool.Api.Hubs;
 using PmTool.Api.Models;
+using PmTool.Api.Services;
 using System.Data.Common;
 using System.Text;
 
@@ -44,9 +46,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddCors(o => o.AddPolicy("AllowAll", p => p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+builder.Services.AddCors(o => o.AddPolicy("AllowAll", p =>
+    p.SetIsOriginAllowed(_ => true)
+     .AllowAnyMethod()
+     .AllowAnyHeader()
+     .AllowCredentials())); // AllowCredentials required for SignalR WebSocket
+
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
+
+// ─── SignalR ──────────────────────────────────────────────────────────────────
+builder.Services.AddSignalR();
+
+// ─── AI Services ─────────────────────────────────────────────────────────────
+builder.Services.AddScoped<AnthropicService>();
+builder.Services.AddScoped<EmbeddingService>();
+builder.Services.AddScoped<ProjectMatcherService>();
+builder.Services.AddScoped<ProjectRetroService>();
+builder.Services.AddScoped<CommandService>();
+
+// ─── Background Services ──────────────────────────────────────────────────────
+builder.Services.AddHostedService<EmbeddingBackfillService>();
+builder.Services.AddHostedService<WebhookRenewalService>();
+builder.Services.AddHostedService<MondayBriefingService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -101,6 +123,7 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<PmHub>("/hubs/pm");
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", ts = DateTime.UtcNow, provider = dbProvider }));
 
 app.Run();
@@ -549,4 +572,74 @@ CREATE TABLE [ProjectJiraLinks](
     EnsureIndex(db, "ProjectForecastSnapshots", "IX_ProjectForecastSnapshots_ProjectId_SnapshotDate", "CREATE UNIQUE INDEX [IX_ProjectForecastSnapshots_ProjectId_SnapshotDate] ON [ProjectForecastSnapshots]([ProjectId], [SnapshotDate])");
     EnsureIndex(db, "ProjectTeamsLinks", "IX_ProjectTeamsLinks_ProjectId", "CREATE UNIQUE INDEX [IX_ProjectTeamsLinks_ProjectId] ON [ProjectTeamsLinks]([ProjectId])");
     EnsureIndex(db, "ProjectJiraLinks", "IX_ProjectJiraLinks_ProjectId", "CREATE UNIQUE INDEX [IX_ProjectJiraLinks_ProjectId] ON [ProjectJiraLinks]([ProjectId])");
+
+    // AI / Embedding tables
+    EnsureTable(db, "EmbeddingVectors", @"
+CREATE TABLE [EmbeddingVectors](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [TenantId] uniqueidentifier NOT NULL,
+    [ProjectId] uniqueidentifier NOT NULL,
+    [EntityType] nvarchar(50) NOT NULL,
+    [EntityId] uniqueidentifier NOT NULL,
+    [EmbeddedText] nvarchar(max) NOT NULL,
+    [EmbeddingJson] nvarchar(max) NOT NULL,
+    [IsInstitutionalMemory] bit NOT NULL DEFAULT 0,
+    [Importance] int NOT NULL DEFAULT 3,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_EmbeddingVectors_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE
+)");
+
+    EnsureTable(db, "GraphWebhookSubscriptions", @"
+CREATE TABLE [GraphWebhookSubscriptions](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [TenantId] uniqueidentifier NOT NULL,
+    [SubscriptionId] nvarchar(200) NOT NULL,
+    [Resource] nvarchar(200) NOT NULL,
+    [ChangeType] nvarchar(50) NOT NULL,
+    [ExpirationDateTime] datetime2 NOT NULL,
+    [Status] nvarchar(20) NOT NULL,
+    [LastRenewedAt] datetime2 NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL
+)");
+
+    EnsureTable(db, "ProjectRetroSummaries", @"
+CREATE TABLE [ProjectRetroSummaries](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [TenantId] uniqueidentifier NOT NULL,
+    [ProjectId] uniqueidentifier NOT NULL,
+    [Summary] nvarchar(max) NOT NULL,
+    [LessonsLearned] nvarchar(max) NOT NULL,
+    [SuccessFactors] nvarchar(max) NOT NULL,
+    [RiskPatterns] nvarchar(max) NOT NULL,
+    [ProjectCategory] nvarchar(50) NOT NULL,
+    [ProjectStage] nvarchar(50) NOT NULL,
+    [DurationDays] int NOT NULL,
+    [BudgetVariancePercent] decimal(18,2) NOT NULL,
+    [WasDelayed] bit NOT NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_ProjectRetroSummaries_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE
+)");
+
+    EnsureTable(db, "AiConversations", @"
+CREATE TABLE [AiConversations](
+    [Id] uniqueidentifier NOT NULL PRIMARY KEY,
+    [TenantId] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [ProjectId] uniqueidentifier NULL,
+    [Role] nvarchar(20) NOT NULL,
+    [Content] nvarchar(max) NOT NULL,
+    [ConversationId] nvarchar(50) NOT NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    CONSTRAINT [FK_AiConversations_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users]([Id]),
+    CONSTRAINT [FK_AiConversations_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [Projects]([Id]) ON DELETE CASCADE
+)");
+
+    EnsureIndex(db, "EmbeddingVectors", "IX_EmbeddingVectors_TenantId_ProjectId", "CREATE INDEX [IX_EmbeddingVectors_TenantId_ProjectId] ON [EmbeddingVectors]([TenantId], [ProjectId])");
+    EnsureIndex(db, "EmbeddingVectors", "IX_EmbeddingVectors_EntityType_EntityId", "CREATE INDEX [IX_EmbeddingVectors_EntityType_EntityId] ON [EmbeddingVectors]([EntityType], [EntityId])");
+    EnsureIndex(db, "GraphWebhookSubscriptions", "IX_GraphWebhookSubscriptions_SubscriptionId", "CREATE UNIQUE INDEX [IX_GraphWebhookSubscriptions_SubscriptionId] ON [GraphWebhookSubscriptions]([SubscriptionId])");
+    EnsureIndex(db, "AiConversations", "IX_AiConversations_TenantId_UserId_ConversationId", "CREATE INDEX [IX_AiConversations_TenantId_UserId_ConversationId] ON [AiConversations]([TenantId], [UserId], [ConversationId])");
 }
