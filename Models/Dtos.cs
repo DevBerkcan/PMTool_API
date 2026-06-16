@@ -175,6 +175,7 @@ public record MeetingAnalyzeResponse(Guid ProjectId, string SourceType, string T
 public record MeetingCommitRequest(Guid ProjectId, string SourceType, string Title, string Content);
 public record MeetingCommitResponse(Guid ProjectId, string Title, int CreatedTasks, int CreatedDecisions, int CreatedRisks, int CreatedKnowledgeItems, string Summary);
 public record ProjectMeetingDto(Guid Id, string Title, DateTime MeetingDate, string Participants, string Location, string TeamsJoinUrl, string TeamsOnlineMeetingId, string TranscriptSource, DateTime? TranscriptFetchedAt, string ExtractionStatus, string Notes, string CreatedByName, DateTime CreatedAt, bool HasTranscript);
+public record GlobalMeetingDto(Guid Id, Guid ProjectId, string ProjectName, string Title, DateTime MeetingDate, string Participants, string Location, string ExtractionStatus, bool HasTranscript, string Notes, string CreatedByName, DateTime CreatedAt, int? ExtractedTasksCount, int? ExtractedDecisionsCount, string Summary, string TeamsOnlineMeetingId);
 public record CreateProjectMeetingRequest(string Title, DateTime MeetingDate, string? Participants, string? Location, string? TeamsJoinUrl, string? TeamsOnlineMeetingId, string? Notes);
 public record UpdateProjectMeetingRequest(string? Title, DateTime? MeetingDate, string? Participants, string? Location, string? TeamsJoinUrl, string? TeamsOnlineMeetingId, string? Notes);
 public record AddTranscriptRequest(string TranscriptText);

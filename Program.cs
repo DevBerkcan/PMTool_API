@@ -1,13 +1,24 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PmTool.Api.Hubs;
 using PmTool.Api.Models;
 using PmTool.Api.Services;
 using System.Data.Common;
+using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(
+        builder.Environment.ContentRootPath,
+        ".data-protection-keys")));
 
 var dbProvider = (builder.Configuration["DatabaseProvider"] ?? "sqlite").ToLowerInvariant();
 var defaultConn = builder.Configuration.GetConnectionString("Default")
@@ -34,15 +45,33 @@ var jwtSecret = builder.Configuration["Jwt:Secret"]
     ?? "realcore-pm-secret-2026-heinemann-secure-key!";
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(o => o.TokenValidationParameters = new TokenValidationParameters
+    .AddJwtBearer(o =>
     {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-        ValidateIssuer = true,
-        ValidIssuer = "pmtool",
-        ValidateAudience = true,
-        ValidAudience = "pmtool",
-        ValidateLifetime = true,
+        o.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer = true,
+            ValidIssuer = "pmtool",
+            ValidateAudience = true,
+            ValidAudience = "pmtool",
+            ValidateLifetime = true,
+        };
+
+        o.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                var user = context.Principal;
+                if (!Guid.TryParse(user?.FindFirstValue("tenantId"), out _) ||
+                    !Guid.TryParse(user?.FindFirstValue(ClaimTypes.NameIdentifier), out _))
+                {
+                    context.Fail("Token is missing required PM Tool claims.");
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -107,8 +136,7 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        var log = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        log.LogWarning("DB migration: {Msg}", ex.Message);
+        Console.Error.WriteLine($"DB migration: {ex.Message}");
     }
 }
 

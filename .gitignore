@@ -3,3 +3,4 @@ obj/
 .vs/
 *.log
 pmtool.db
+.data-protection-keys/

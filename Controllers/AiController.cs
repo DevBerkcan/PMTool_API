@@ -18,17 +18,19 @@ public class AiController : ControllerBase
     private readonly EmbeddingService _embed;
     private readonly IHubContext<PmHub> _hub;
     private readonly CommandService _commands;
+    private readonly ILogger<AiController> _log;
     private Guid TenantId => Guid.Parse(User.FindFirstValue("tenantId")!);
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private string UserName => User.FindFirstValue(ClaimTypes.Name) ?? "PM";
 
-    public AiController(AppDbContext db, AnthropicService ai, EmbeddingService embed, IHubContext<PmHub> hub, CommandService commands)
+    public AiController(AppDbContext db, AnthropicService ai, EmbeddingService embed, IHubContext<PmHub> hub, CommandService commands, ILogger<AiController> log)
     {
         _db = db;
         _ai = ai;
         _embed = embed;
         _hub = hub;
         _commands = commands;
+        _log = log;
     }
 
     // ─── Command system ───────────────────────────────────────────────────────
@@ -36,8 +38,58 @@ public class AiController : ControllerBase
     [HttpPost("command")]
     public async Task<ActionResult<CommandResult>> ExecuteCommand([FromBody] CommandRequest req)
     {
-        var result = await _commands.ExecuteAsync(TenantId, UserId, UserName, req.Input, req.ProjectId);
-        return Ok(result);
+        try
+        {
+            var result = await _commands.ExecuteAsync(TenantId, UserId, UserName, req.Input, req.ProjectId);
+            return Ok(result);
+        }
+        catch (Exception ex) when (IsMeetingDependentCommand(req.Input))
+        {
+            _log.LogWarning(ex, "Meeting-backed command failed for input {Input}. Returning fallback response.", req.Input);
+            return Ok(BuildMeetingFallback(req.Input));
+        }
+    }
+
+    private static bool IsMeetingDependentCommand(string? input)
+    {
+        var command = input?.Trim().TrimStart('/').Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.ToLowerInvariant();
+        return command is "today" or "tomorrow" or "meetings" or "followups";
+    }
+
+    private static CommandResult BuildMeetingFallback(string? input)
+    {
+        var command = input?.Trim().TrimStart('/').Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.ToLowerInvariant() ?? "command";
+
+        return new CommandResult(
+            command,
+            "",
+            $"Temporarer Fallback fuer /{command}",
+            "Meeting-Daten sind aktuell auf der Produktionsdatenbank nicht stabil lesbar. Nicht-meetingbasierte AI-Commands funktionieren weiter; die Meeting-Ansicht wird separat nachgezogen.",
+            "warning",
+            [
+                new CommandSection(
+                    "Meeting-Daten voruebergehend deaktiviert",
+                    "warning",
+                    "warning",
+                    [
+                        new CommandItem(
+                            "Meeting-Abfragen liefern derzeit keinen stabilen Datenzugriff",
+                            "Nutze vorerst /projects, /priority, /risks oder /focus. Das Backend bleibt dabei funktionsfaehig.",
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            "warning",
+                            [])
+                    ])
+            ],
+            [
+                new CommandAction("Prioritaeten oeffnen", "chat", null, null, "/priority"),
+                new CommandAction("Projektstatus", "chat", null, null, "/projects")
+            ],
+            DateTime.UtcNow.ToString("o"));
     }
 
     // ─── RAG-powered chat ─────────────────────────────────────────────────────
